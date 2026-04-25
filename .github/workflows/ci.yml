@@ -24,3 +24,22 @@ jobs:
         with: { go-version: '1.24' }
       - uses: golangci/golangci-lint-action@v8
         with: { version: latest }
+
+  server-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.24' }
+      - name: Run store + api + ws tests
+        run: go test ./internal/store/... ./internal/api/... ./internal/oauth/... ./internal/hub/... ./internal/wswrapper/... ./internal/wsbrowser/... -timeout 10m
+      - name: Run e2e (tag)
+        run: go test -tags e2e ./cmd/claude-switch-server/... -timeout 10m
+
+  server-image:
+    runs-on: ubuntu-latest
+    needs: server-tests
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build server image
+        run: docker build -f Dockerfile.server -t claude-switch-server:ci .
