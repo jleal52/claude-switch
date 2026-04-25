@@ -21,7 +21,7 @@ type Config struct {
 	Start      StartFn  // PTY start function
 	ClaudeHome string   // path to Claude's home dir (e.g. ~/.claude); enables JSONL discovery when set
 	// Coalescing policy (defaults from spec).
-	Flush    time.Duration
+	Flush      time.Duration
 	FlushBytes int
 	// Optional Job Object for child cleanup on Windows.
 	Job interface{ Assign(*exec.Cmd) error }
