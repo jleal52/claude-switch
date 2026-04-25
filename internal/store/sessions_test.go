@@ -9,7 +9,7 @@ import (
 )
 
 func TestSessionsCreateAndGet(t *testing.T) {
-	s := newTestStore(t, "sessions_basic")
+	s := NewTestStore(t, "sessions_basic")
 	ctx := context.Background()
 	u, _ := s.Users().UpsertOAuth(ctx, OAuthProfile{Provider: "github", Subject: "u1"})
 	w, _, _ := s.Wrappers().Create(ctx, WrapperCreate{UserID: u.ID, Name: "x", OS: "linux", Arch: "amd64"})
@@ -28,7 +28,7 @@ func TestSessionsCreateAndGet(t *testing.T) {
 }
 
 func TestSessionsTransitions(t *testing.T) {
-	s := newTestStore(t, "sessions_xitions")
+	s := NewTestStore(t, "sessions_xitions")
 	ctx := context.Background()
 	u, _ := s.Users().UpsertOAuth(ctx, OAuthProfile{Provider: "github", Subject: "u2"})
 	w, _, _ := s.Wrappers().Create(ctx, WrapperCreate{UserID: u.ID, Name: "x", OS: "linux", Arch: "amd64"})
@@ -49,7 +49,7 @@ func TestSessionsTransitions(t *testing.T) {
 }
 
 func TestSessionsListByUser(t *testing.T) {
-	s := newTestStore(t, "sessions_list")
+	s := NewTestStore(t, "sessions_list")
 	ctx := context.Background()
 	u, _ := s.Users().UpsertOAuth(ctx, OAuthProfile{Provider: "github", Subject: "u3"})
 	w, _, _ := s.Wrappers().Create(ctx, WrapperCreate{UserID: u.ID, Name: "x", OS: "linux", Arch: "amd64"})

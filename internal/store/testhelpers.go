@@ -41,9 +41,9 @@ func MustStartMongo(t *testing.T) string {
 	return sharedMongoURI
 }
 
-// newTestStore returns a store backed by a fresh database name (so tests
+// NewTestStore returns a store backed by a fresh database name (so tests
 // don't share state) on the shared mongo container.
-func newTestStore(t *testing.T, label string) *Store {
+func NewTestStore(t *testing.T, label string) *Store {
 	t.Helper()
 	uri := MustStartMongo(t)
 	dbName := fmt.Sprintf("cs_test_%s_%d", label, time.Now().UnixNano())

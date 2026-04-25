@@ -9,7 +9,7 @@ import (
 )
 
 func TestWrappersInsertAndList(t *testing.T) {
-	s := newTestStore(t, "wrappers_basic")
+	s := NewTestStore(t, "wrappers_basic")
 	ctx := context.Background()
 
 	u, err := s.Users().UpsertOAuth(ctx, OAuthProfile{Provider: "github", Subject: "u1"})
@@ -29,7 +29,7 @@ func TestWrappersInsertAndList(t *testing.T) {
 }
 
 func TestWrappersVerifyRefreshToken(t *testing.T) {
-	s := newTestStore(t, "wrappers_refresh")
+	s := NewTestStore(t, "wrappers_refresh")
 	ctx := context.Background()
 
 	u, _ := s.Users().UpsertOAuth(ctx, OAuthProfile{Provider: "github", Subject: "u2"})
@@ -45,7 +45,7 @@ func TestWrappersVerifyRefreshToken(t *testing.T) {
 }
 
 func TestWrappersRevokedRejectsVerify(t *testing.T) {
-	s := newTestStore(t, "wrappers_revoked")
+	s := NewTestStore(t, "wrappers_revoked")
 	ctx := context.Background()
 	u, _ := s.Users().UpsertOAuth(ctx, OAuthProfile{Provider: "github", Subject: "u3"})
 	w, plain, _ := s.Wrappers().Create(ctx, WrapperCreate{UserID: u.ID, Name: "x", OS: "linux", Arch: "amd64"})
@@ -56,7 +56,7 @@ func TestWrappersRevokedRejectsVerify(t *testing.T) {
 }
 
 func TestWrapperAccessTokenLifecycle(t *testing.T) {
-	s := newTestStore(t, "wrappers_access")
+	s := NewTestStore(t, "wrappers_access")
 	ctx := context.Background()
 	u, _ := s.Users().UpsertOAuth(ctx, OAuthProfile{Provider: "github", Subject: "u4"})
 	w, _, _ := s.Wrappers().Create(ctx, WrapperCreate{UserID: u.ID, Name: "x", OS: "linux", Arch: "amd64"})

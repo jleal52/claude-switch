@@ -9,7 +9,7 @@ import (
 )
 
 func TestAuthSessionsCreateAndGet(t *testing.T) {
-	s := newTestStore(t, "authsess_basic")
+	s := NewTestStore(t, "authsess_basic")
 	ctx := context.Background()
 	u, _ := s.Users().UpsertOAuth(ctx, OAuthProfile{Provider: "github", Subject: "u1"})
 
@@ -24,7 +24,7 @@ func TestAuthSessionsCreateAndGet(t *testing.T) {
 }
 
 func TestAuthSessionsDeleteRevokes(t *testing.T) {
-	s := newTestStore(t, "authsess_delete")
+	s := NewTestStore(t, "authsess_delete")
 	ctx := context.Background()
 	u, _ := s.Users().UpsertOAuth(ctx, OAuthProfile{Provider: "github", Subject: "u2"})
 	sess, _ := s.AuthSessions().Create(ctx, u.ID, time.Hour)
@@ -35,7 +35,7 @@ func TestAuthSessionsDeleteRevokes(t *testing.T) {
 }
 
 func TestAuthSessionsTouchExtendsExpiry(t *testing.T) {
-	s := newTestStore(t, "authsess_touch")
+	s := NewTestStore(t, "authsess_touch")
 	ctx := context.Background()
 	u, _ := s.Users().UpsertOAuth(ctx, OAuthProfile{Provider: "github", Subject: "u3"})
 	sess, _ := s.AuthSessions().Create(ctx, u.ID, time.Minute)

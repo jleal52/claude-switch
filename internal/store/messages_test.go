@@ -10,7 +10,7 @@ import (
 )
 
 func TestMessagesAppendAndList(t *testing.T) {
-	s := newTestStore(t, "messages_basic")
+	s := NewTestStore(t, "messages_basic")
 	ctx := context.Background()
 	u, _ := s.Users().UpsertOAuth(ctx, OAuthProfile{Provider: "github", Subject: "u1"})
 	sid := ulid.Make().String()
@@ -26,7 +26,7 @@ func TestMessagesAppendAndList(t *testing.T) {
 }
 
 func TestMessagesListSinceFilters(t *testing.T) {
-	s := newTestStore(t, "messages_since")
+	s := NewTestStore(t, "messages_since")
 	ctx := context.Background()
 	u, _ := s.Users().UpsertOAuth(ctx, OAuthProfile{Provider: "github", Subject: "u2"})
 	sid := ulid.Make().String()

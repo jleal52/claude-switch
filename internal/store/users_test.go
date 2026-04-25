@@ -9,7 +9,7 @@ import (
 )
 
 func TestUsersUpsertCreatesThenReturnsSame(t *testing.T) {
-	s := newTestStore(t, "users_upsert")
+	s := NewTestStore(t, "users_upsert")
 	ctx := context.Background()
 
 	u1, err := s.Users().UpsertOAuth(ctx, OAuthProfile{
@@ -31,7 +31,7 @@ func TestUsersUpsertCreatesThenReturnsSame(t *testing.T) {
 }
 
 func TestUsersGetByIDNotFound(t *testing.T) {
-	s := newTestStore(t, "users_getmissing")
+	s := NewTestStore(t, "users_getmissing")
 	ctx := context.Background()
 
 	_, err := s.Users().GetByID(ctx, "000000000000000000000000")
@@ -39,7 +39,7 @@ func TestUsersGetByIDNotFound(t *testing.T) {
 }
 
 func TestUsersMarkLoginUpdatesTimestamp(t *testing.T) {
-	s := newTestStore(t, "users_marklogin")
+	s := NewTestStore(t, "users_marklogin")
 	ctx := context.Background()
 
 	u, err := s.Users().UpsertOAuth(ctx, OAuthProfile{Provider: "google", Subject: "g1", Email: "x@y"})
@@ -55,7 +55,7 @@ func TestUsersMarkLoginUpdatesTimestamp(t *testing.T) {
 }
 
 func TestUsersSetKeepTranscripts(t *testing.T) {
-	s := newTestStore(t, "users_keep")
+	s := NewTestStore(t, "users_keep")
 	ctx := context.Background()
 
 	u, err := s.Users().UpsertOAuth(ctx, OAuthProfile{Provider: "github", Subject: "k1"})

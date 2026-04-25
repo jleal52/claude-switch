@@ -9,7 +9,7 @@ import (
 )
 
 func TestPairingCreateAndGet(t *testing.T) {
-	s := newTestStore(t, "pair_create")
+	s := NewTestStore(t, "pair_create")
 	ctx := context.Background()
 
 	pc, err := s.Pairing().Create(ctx, WrapperDescriptor{
@@ -25,7 +25,7 @@ func TestPairingCreateAndGet(t *testing.T) {
 }
 
 func TestPairingApproveSetsUserAndStatus(t *testing.T) {
-	s := newTestStore(t, "pair_approve")
+	s := NewTestStore(t, "pair_approve")
 	ctx := context.Background()
 	u, _ := s.Users().UpsertOAuth(ctx, OAuthProfile{Provider: "github", Subject: "u1"})
 	pc, _ := s.Pairing().Create(ctx, WrapperDescriptor{Name: "n", OS: "linux", Arch: "amd64"}, time.Minute)
@@ -38,7 +38,7 @@ func TestPairingApproveSetsUserAndStatus(t *testing.T) {
 }
 
 func TestPairingDeleteAfterRedeem(t *testing.T) {
-	s := newTestStore(t, "pair_delete")
+	s := NewTestStore(t, "pair_delete")
 	ctx := context.Background()
 	pc, _ := s.Pairing().Create(ctx, WrapperDescriptor{Name: "n", OS: "linux", Arch: "amd64"}, time.Minute)
 
@@ -49,7 +49,7 @@ func TestPairingDeleteAfterRedeem(t *testing.T) {
 }
 
 func TestPairingDoubleApproveIsError(t *testing.T) {
-	s := newTestStore(t, "pair_double")
+	s := NewTestStore(t, "pair_double")
 	ctx := context.Background()
 	u, _ := s.Users().UpsertOAuth(ctx, OAuthProfile{Provider: "github", Subject: "u2"})
 	pc, _ := s.Pairing().Create(ctx, WrapperDescriptor{Name: "n", OS: "linux", Arch: "amd64"}, time.Minute)
