@@ -229,3 +229,22 @@ func filenameStem(p string) string {
 	}
 	return base
 }
+
+// InjectForTest pre-populates a session row with ring contents. Used only
+// by ws package tests that want to assert replay behavior without spawning
+// a real PTY. Callers MUST NOT use this in production code paths.
+func (s *Supervisor) InjectForTest(id string, ringSeed []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, exists := s.sessions[id]; exists {
+		return ErrSessionExists
+	}
+	sess := &Session{
+		ID: id, Cwd: "/tmp", Account: "default", Created: time.Now(),
+		inbox: make(chan []byte, 1), stop: make(chan struct{}),
+		ring: ring.New(RingBytes),
+	}
+	_, _ = sess.ring.Write(ringSeed)
+	s.sessions[id] = sess
+	return nil
+}
