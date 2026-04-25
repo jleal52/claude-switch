@@ -8,11 +8,11 @@ import (
 
 func TestEnvelopeRoundTripHello(t *testing.T) {
 	h := Hello{
-		WrapperID: "w-abc",
-		OS:        "linux",
-		Arch:      "amd64",
-		Version:   "0.1.0",
-		Accounts:  []string{"default"},
+		WrapperID:    "w-abc",
+		OS:           "linux",
+		Arch:         "amd64",
+		Version:      "0.1.0",
+		Accounts:     []string{"default"},
 		Capabilities: []string{"pty"},
 	}
 	raw, err := Encode("hello", "", h)

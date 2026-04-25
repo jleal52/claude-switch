@@ -2,7 +2,6 @@ package session
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -22,15 +21,15 @@ type Config struct {
 	Start      StartFn  // PTY start function
 	ClaudeHome string   // path to Claude's home dir (e.g. ~/.claude); enables JSONL discovery when set
 	// Coalescing policy (defaults from spec).
-	FlushMs    time.Duration
+	Flush    time.Duration
 	FlushBytes int
 	// Optional Job Object for child cleanup on Windows.
 	Job interface{ Assign(*exec.Cmd) error }
 }
 
 func (c Config) defaulted() Config {
-	if c.FlushMs == 0 {
-		c.FlushMs = 16 * time.Millisecond
+	if c.Flush == 0 {
+		c.Flush = 16 * time.Millisecond
 	}
 	if c.FlushBytes == 0 {
 		c.FlushBytes = 16 * 1024
@@ -177,16 +176,15 @@ func (s *Supervisor) reader(ctx context.Context, sess *Session) {
 		sess.CloseWith(s.events, "normal")
 	}()
 
-	err := Coalesce(ctx, sess.pty, s.cfg.FlushBytes, s.cfg.FlushMs, func(b []byte) {
+	// Coalesce returns io.EOF on normal child exit and ctx.Err() on cancel.
+	// Both are expected; the deferred CloseWith handles the SessionExited emit.
+	_ = Coalesce(ctx, sess.pty, s.cfg.FlushBytes, s.cfg.Flush, func(b []byte) {
 		_, _ = sess.ring.Write(b)
 		// Make a defensive copy since the coalescer re-uses its pending slice.
 		cp := make([]byte, len(b))
 		copy(cp, b)
 		emit(s.events, PTYDataEvent{Session: sess.ID, Bytes: cp})
 	})
-	if err != nil && !errors.Is(err, context.Canceled) {
-		// Normal EOF path: Coalesce returned io.EOF from the PTY. Nothing to do.
-	}
 }
 
 // writer drains the inbox into PTY stdin.

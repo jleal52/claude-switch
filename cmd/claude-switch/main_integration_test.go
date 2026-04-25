@@ -101,5 +101,5 @@ func TestEndToEndOpenWriteReceive(t *testing.T) {
 	}
 }
 
-func ulidString(t *testing.T) string { t.Helper(); return ulid.Make().String() }
+func ulidString(t *testing.T) string             { t.Helper(); return ulid.Make().String() }
 func ulidFromString(s string) (ulid.ULID, error) { return ulid.ParseStrict(s) }

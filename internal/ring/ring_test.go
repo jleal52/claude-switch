@@ -16,7 +16,7 @@ func TestRingBelowCapacity(t *testing.T) {
 func TestRingEvictsOldestOverCapacity(t *testing.T) {
 	r := New(8)
 	r.Write([]byte("abcdefgh")) // fills exactly
-	r.Write([]byte("IJK"))       // pushes out "abc"
+	r.Write([]byte("IJK"))      // pushes out "abc"
 	require.Equal(t, []byte("defghIJK"), r.Snapshot())
 	require.Equal(t, 8, r.Len())
 }

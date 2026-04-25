@@ -26,7 +26,7 @@ func TestBackoffIsExponentialWithCap(t *testing.T) {
 
 	require.GreaterOrEqual(t, d0, 100*time.Millisecond)
 	require.LessOrEqual(t, d0, 150*time.Millisecond) // +jitter up to 50%
-	require.Greater(t, d1, d0/2)                      // roughly doubled minus jitter
+	require.Greater(t, d1, d0/2)                     // roughly doubled minus jitter
 	require.Greater(t, d2, d1/2)
 	require.LessOrEqual(t, d10, 2*time.Second+time.Duration(float64(2*time.Second)*0.5))
 	// Reset puts us back to base.
