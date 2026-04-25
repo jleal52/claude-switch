@@ -5,19 +5,22 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/jleal52/claude-switch/internal/process"
 	"github.com/jleal52/claude-switch/internal/pty"
 	"github.com/jleal52/claude-switch/internal/ring"
+	"github.com/jleal52/claude-switch/internal/tail"
 )
 
 // Config wires the supervisor's external dependencies.
 type Config struct {
-	ClaudeBin string   // path to `claude` (or test stand-in)
-	BaseArgs  []string // prefix args before server-supplied args (default: --spawn same-dir)
-	Start     StartFn  // PTY start function
+	ClaudeBin  string   // path to `claude` (or test stand-in)
+	BaseArgs   []string // prefix args before server-supplied args (default: --spawn same-dir)
+	Start      StartFn  // PTY start function
+	ClaudeHome string   // path to Claude's home dir (e.g. ~/.claude); enables JSONL discovery when set
 	// Coalescing policy (defaults from spec).
 	FlushMs    time.Duration
 	FlushBytes int
@@ -70,6 +73,8 @@ func (s *Supervisor) Open(ctx context.Context, id, cwd, account string, extraArg
 		return fmt.Errorf("open %s: %w", id, ErrSessionExists)
 	}
 
+	now := time.Now()
+
 	args := append([]string{}, s.cfg.BaseArgs...)
 	args = append(args, extraArgs...)
 	cmd := exec.Command(s.cfg.ClaudeBin, args...)
@@ -110,6 +115,9 @@ func (s *Supervisor) Open(ctx context.Context, id, cwd, account string, extraArg
 	emit(s.events, SessionStartedEvent{
 		Session: id, PID: sess.PID(), JSONLUUID: "", Cwd: cwd, Account: account,
 	})
+	if s.cfg.ClaudeHome != "" {
+		go s.discoverAndTail(ctx, sess, now)
+	}
 	return nil
 }
 
@@ -193,4 +201,31 @@ func (s *Supervisor) writer(ctx context.Context, sess *Session) {
 			_, _ = sess.pty.Write(msg)
 		}
 	}
+}
+
+// discoverAndTail waits for Claude to create the session's .jsonl file, emits
+// an updated SessionStartedEvent with the UUID, then tails the file for
+// JSONLTailEvents.
+func (s *Supervisor) discoverAndTail(ctx context.Context, sess *Session, notBefore time.Time) {
+	projDir := tail.ProjectDirForCwd(s.cfg.ClaudeHome, sess.Cwd)
+	path, err := tail.WaitForNewJSONL(ctx, projDir, notBefore)
+	if err != nil {
+		return
+	}
+	uuid := filenameStem(path)
+	sess.JSONLUUID = uuid
+	emit(s.events, SessionStartedEvent{
+		Session: sess.ID, PID: sess.PID(), JSONLUUID: uuid, Cwd: sess.Cwd, Account: sess.Account,
+	})
+	_ = tail.Tail(ctx, path, func(line string) {
+		emit(s.events, JSONLTailEvent{Session: sess.ID, Entry: line})
+	})
+}
+
+func filenameStem(p string) string {
+	base := filepath.Base(p)
+	if ext := filepath.Ext(base); ext != "" {
+		base = base[:len(base)-len(ext)]
+	}
+	return base
 }

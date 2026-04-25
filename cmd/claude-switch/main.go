@@ -111,10 +111,13 @@ func run() int {
 	}
 
 	// Build supervisor.
+	home, _ := os.UserHomeDir()
+	claudeHome := filepath.Join(home, ".claude")
 	events := make(chan session.Event, 256)
 	sup := session.NewSupervisor(session.Config{
-		ClaudeBin: bin,
-		Start:     pty.Start,
+		ClaudeBin:  bin,
+		Start:      pty.Start,
+		ClaudeHome: claudeHome,
 	}, events)
 
 	// Wrapper ID: hostname + 4 hex bytes of PID.
