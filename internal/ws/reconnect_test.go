@@ -1,11 +1,17 @@
 package ws
 
 import (
+	"context"
 	"math"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jleal52/claude-switch/internal/session"
 )
 
 func TestBackoffIsExponentialWithCap(t *testing.T) {
@@ -29,4 +35,30 @@ func TestBackoffIsExponentialWithCap(t *testing.T) {
 	require.LessOrEqual(t, dr, 150*time.Millisecond)
 
 	_ = math.Pi // silence unused import if any
+}
+
+func TestRunOnceExitsWhenNoPingArrives(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, _ := websocket.Accept(w, r, nil)
+		defer c.CloseNow()
+		_, _, _ = c.Read(r.Context()) // consume hello; then idle until close.
+		<-r.Context().Done()
+	}))
+	defer srv.Close()
+
+	events := make(chan session.Event, 4)
+	sup := session.NewSupervisor(session.Config{ClaudeBin: "/bin/true"}, events)
+	cli := NewClient(Config{
+		URL:         "ws" + srv.URL[len("http"):],
+		Token:       "t",
+		WrapperID:   "w",
+		Version:     "test",
+		ReadTimeout: 100 * time.Millisecond,
+	}, sup, events)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := cli.runOnce(ctx)
+	require.Error(t, err) // a timeout, not a clean exit
 }

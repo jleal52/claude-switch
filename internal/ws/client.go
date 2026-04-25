@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"runtime"
+	"time"
 
 	"github.com/coder/websocket"
 	"github.com/oklog/ulid/v2"
@@ -18,10 +19,11 @@ import (
 )
 
 type Config struct {
-	URL       string
-	Token     string
-	WrapperID string
-	Version   string
+	URL         string
+	Token       string
+	WrapperID   string
+	Version     string
+	ReadTimeout time.Duration // per-read timeout; default 45s
 }
 
 type Client struct {
@@ -70,8 +72,12 @@ func (c *Client) runOnce(ctx context.Context) error {
 	}
 
 	// Fan-in: inbound frames and outbound events.
+	timeout := c.cfg.ReadTimeout
+	if timeout == 0 {
+		timeout = 45 * time.Second
+	}
 	readErr := make(chan error, 1)
-	go func() { readErr <- c.readLoop(ctx, conn) }()
+	go func() { readErr <- c.readLoop(ctx, conn, timeout) }()
 
 	for {
 		select {
@@ -148,9 +154,11 @@ func (c *Client) writeEvent(ctx context.Context, conn *websocket.Conn, ev sessio
 	}
 }
 
-func (c *Client) readLoop(ctx context.Context, conn *websocket.Conn) error {
+func (c *Client) readLoop(ctx context.Context, conn *websocket.Conn, timeout time.Duration) error {
 	for {
-		typ, data, err := conn.Read(ctx)
+		rctx, cancel := context.WithTimeout(ctx, timeout)
+		typ, data, err := conn.Read(rctx)
+		cancel()
 		if err != nil {
 			return err
 		}
