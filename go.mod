@@ -2,8 +2,6 @@ module github.com/jleal52/claude-switch
 
 go 1.24.0
 
-toolchain go1.24.4
-
 require (
 	github.com/UserExistsError/conpty v0.1.4
 	github.com/coder/websocket v1.8.14
@@ -13,6 +11,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go/modules/mongodb v0.32.0
 	go.mongodb.org/mongo-driver/v2 v2.5.1
+	golang.org/x/oauth2 v0.27.0
 	golang.org/x/sys v0.41.0
 )
 
