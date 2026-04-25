@@ -120,6 +120,10 @@ func emit(ch chan<- Event, e Event) {
 	}
 }
 
+// Ring returns a snapshot of the session's recent PTY output ring buffer.
+// Used by the ws layer to replay buffered bytes after a reconnect.
+func (s *Session) Ring() []byte { return s.ring.Snapshot() }
+
 // ctx-aware wait with a timeout helper.
 func waitCtx(ctx context.Context, d time.Duration) {
 	select {

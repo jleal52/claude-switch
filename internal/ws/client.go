@@ -51,6 +51,24 @@ func (c *Client) runOnce(ctx context.Context) error {
 		return err
 	}
 
+	// Ring-buffer replay: re-send what each alive session has buffered so the
+	// browser sees "what it missed" during disconnect. Order: hello, replay,
+	// then live event loop.
+	for _, s := range c.sup.Snapshot() {
+		buf := s.Ring() // accessor added in session.go
+		if len(buf) == 0 {
+			continue
+		}
+		id, err := ulid.ParseStrict(s.ID)
+		if err != nil {
+			continue
+		}
+		frame := proto.EncodePTYData(id, buf)
+		if err := conn.Write(ctx, websocket.MessageBinary, frame); err != nil {
+			return err
+		}
+	}
+
 	// Fan-in: inbound frames and outbound events.
 	readErr := make(chan error, 1)
 	go func() { readErr <- c.readLoop(ctx, conn) }()
@@ -144,14 +162,14 @@ func (c *Client) readLoop(ctx context.Context, conn *websocket.Conn) error {
 			}
 			_ = c.sup.Input(id.String(), payload)
 		case websocket.MessageText:
-			if err := c.handleControl(ctx, data); err != nil {
+			if err := c.handleControl(ctx, conn, data); err != nil {
 				return err
 			}
 		}
 	}
 }
 
-func (c *Client) handleControl(ctx context.Context, data []byte) error {
+func (c *Client) handleControl(ctx context.Context, conn *websocket.Conn, data []byte) error {
 	typ, sess, payload, err := proto.Decode(data)
 	if err != nil {
 		return err
@@ -180,9 +198,11 @@ func (c *Client) handleControl(ctx context.Context, data []byte) error {
 		if err := json.Unmarshal([]byte(payload), &p); err != nil {
 			return err
 		}
-		// Handled via a dedicated path? For MVP inline: noop, Task 14 adds it.
-		_ = p
-		return nil
+		raw, err := proto.Encode(proto.TypePong, "", proto.Pong{Echo: p.Nonce})
+		if err != nil {
+			return err
+		}
+		return conn.Write(ctx, websocket.MessageText, raw)
 	}
 	return nil
 }
