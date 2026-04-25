@@ -1,0 +1,62 @@
+# Deployment of claude-switch-server.
+#
+# Joins your existing Traefik proxy network (for HTTPS routing) and your
+# existing MongoDB network (so the server can reach your shared Mongo).
+# Both network names are configurable via .env — copy .env.example to .env
+# and adjust to match your setup.
+#
+# Build & deploy:
+#   docker compose build
+#   docker compose up -d
+#
+# This file expects the binary image to be built locally from the Dockerfile
+# in this repo (see Dockerfile.server). Once the GitHub release pipeline
+# publishes images to GHCR, swap `build:` for `image: ghcr.io/jleal52/claude-switch-server:<tag>`.
+
+services:
+  claude-switch-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: claude-switch-server
+    restart: unless-stopped
+    environment:
+      # Mongo. URI uses the container name on the shared mongo network.
+      MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017}
+      MONGO_DB: ${MONGO_DB:-claude_switch}
+
+      # Public URL. OAuth callbacks must match exactly. The Traefik rule below
+      # already pins the host; this var lets the app construct absolute URLs.
+      SERVER_BASE_URL: ${SERVER_BASE_URL:-https://claude-switch.dns.nom.es}
+
+      # OAuth providers. Both supported; either can be left unset to disable.
+      OAUTH_GITHUB_CLIENT_ID: ${OAUTH_GITHUB_CLIENT_ID:-}
+      OAUTH_GITHUB_CLIENT_SECRET: ${OAUTH_GITHUB_CLIENT_SECRET:-}
+      OAUTH_GOOGLE_CLIENT_ID: ${OAUTH_GOOGLE_CLIENT_ID:-}
+      OAUTH_GOOGLE_CLIENT_SECRET: ${OAUTH_GOOGLE_CLIENT_SECRET:-}
+
+      # 32+ random bytes (base64) used to sign session cookies and CSRF tokens.
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+
+    networks:
+      - traefik
+      - mongo
+
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${TRAEFIK_NETWORK:-traefik_proxy}
+      - traefik.http.routers.claude-switch.rule=Host(`claude-switch.dns.nom.es`)
+      - traefik.http.routers.claude-switch.entrypoints=websecure
+      - traefik.http.routers.claude-switch.tls=true
+      - traefik.http.routers.claude-switch.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}
+      - traefik.http.services.claude-switch.loadbalancer.server.port=8080
+
+networks:
+  traefik:
+    external: true
+    name: ${TRAEFIK_NETWORK:-traefik_proxy}
+  mongo:
+    external: true
+    name: ${MONGO_NETWORK:-mongo_default}
