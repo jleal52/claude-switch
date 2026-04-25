@@ -10,7 +10,9 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
+	"time"
 
 	"github.com/jleal52/claude-switch/internal/auth"
 	"github.com/jleal52/claude-switch/internal/config"
@@ -105,6 +107,27 @@ func run() int {
 		cfg.ServerURL = creds.ServerEndpoint
 	}
 
+	// Refresh access token if it's near expiry (5 min margin) or expired.
+	if time.Now().Add(5 * time.Minute).After(creds.ExpiresAt) {
+		serverBase := httpBaseFromWs(creds.ServerEndpoint)
+		refreshed, err := auth.Refresh(context.Background(), serverBase, creds.RefreshToken, nil)
+		if err != nil {
+			if errors.Is(err, auth.ErrRevoked) {
+				_ = os.Remove(credsPath)
+				fmt.Fprintln(os.Stderr, "credentials revoked — run: claude-switch pair <server-base-url>")
+				return 2
+			}
+			slog.Error("token refresh", "err", err)
+			return 1
+		}
+		refreshed.ServerEndpoint = creds.ServerEndpoint
+		if err := auth.Save(credsPath, refreshed); err != nil {
+			slog.Error("save refreshed creds", "err", err)
+			return 1
+		}
+		creds = refreshed
+	}
+
 	// Locate claude binary.
 	bin := *claudeBin
 	if bin == "" {
@@ -161,4 +184,17 @@ func signalCtx() context.Context {
 	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 	go func() { <-ch; cancel() }()
 	return ctx
+}
+
+func httpBaseFromWs(endpoint string) string {
+	base := endpoint
+	if strings.HasPrefix(base, "wss://") {
+		base = "https://" + base[len("wss://"):]
+	} else if strings.HasPrefix(base, "ws://") {
+		base = "http://" + base[len("ws://"):]
+	}
+	if i := strings.LastIndex(base, "/"); i > len("https://") {
+		base = base[:i]
+	}
+	return base
 }
