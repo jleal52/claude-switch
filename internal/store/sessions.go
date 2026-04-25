@@ -157,6 +157,29 @@ func (r *SessionsRepo) MarkRunningFromOffline(ctx context.Context, id string) er
 	return err
 }
 
+// ListLiveByWrapper returns sessions for a wrapper in starting/running/
+// wrapper_offline statuses. Used for hello reconciliation.
+func (r *SessionsRepo) ListLiveByWrapper(ctx context.Context, wrapperID string) ([]Session, error) {
+	cur, err := r.coll.Find(ctx, bson.M{
+		"wrapper_id": objectIDFromHex(wrapperID),
+		"status":     bson.M{"$in": []string{"starting", "running", "wrapper_offline"}},
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+
+	var out []Session
+	for cur.Next(ctx) {
+		var d sessionDoc
+		if err := cur.Decode(&d); err != nil {
+			return nil, err
+		}
+		out = append(out, *d.toSession())
+	}
+	return out, cur.Err()
+}
+
 // ListByUser returns sessions for the given user, optionally filtered by status.
 // statusFilter: "" = all, "live" = starting|running|wrapper_offline, "exited" = exited.
 // Results are sorted by created_at descending.
