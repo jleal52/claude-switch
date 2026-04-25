@@ -21,6 +21,12 @@ import (
 
 const wrapperVersion = "0.1.0-dev"
 
+type jobAdapter struct {
+	assign func(*exec.Cmd) error
+}
+
+func (j jobAdapter) Assign(cmd *exec.Cmd) error { return j.assign(cmd) }
+
 func main() { os.Exit(run()) }
 
 func run() int {
@@ -110,6 +116,14 @@ func run() int {
 		bin = p
 	}
 
+	// Windows Job Object: children die when the wrapper exits.
+	job, assignToJob, err := createJob()
+	if err != nil {
+		slog.Error("create job object", "err", err)
+		return 1
+	}
+	defer job.Close()
+
 	// Build supervisor.
 	home, _ := os.UserHomeDir()
 	claudeHome := filepath.Join(home, ".claude")
@@ -118,6 +132,7 @@ func run() int {
 		ClaudeBin:  bin,
 		Start:      pty.Start,
 		ClaudeHome: claudeHome,
+		Job:        jobAdapter{assign: assignToJob},
 	}, events)
 
 	// Wrapper ID: hostname + 4 hex bytes of PID.

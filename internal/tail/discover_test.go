@@ -15,6 +15,10 @@ func TestWaitForJSONLPicksNewestAfterStart(t *testing.T) {
 	// Pre-existing file — must NOT be picked.
 	older := filepath.Join(dir, "old.jsonl")
 	require.NoError(t, os.WriteFile(older, []byte("{}\n"), 0o644))
+	// Back-date the old file so its ModTime is clearly before notBefore,
+	// even on filesystems with coarse (≥1 s) timestamp resolution.
+	past := time.Now().Add(-2 * time.Second)
+	require.NoError(t, os.Chtimes(older, past, past))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
