@@ -1,4 +1,4 @@
-.PHONY: build test lint tidy build-server docker-server
+.PHONY: build test lint tidy build-server docker-server codegen-ts
 
 build:
 	go build -o bin/claude-switch ./cmd/claude-switch
@@ -17,3 +17,8 @@ build-server:
 
 docker-server:
 	docker build -f Dockerfile.server -t claude-switch-server:dev .
+
+# codegen-ts requires github.com/gzuidhof/tygo on PATH.
+# Install once with: go install github.com/gzuidhof/tygo@latest
+codegen-ts:
+	tygo generate

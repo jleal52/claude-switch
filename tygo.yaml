@@ -1,0 +1,21 @@
+packages:
+  - path: "github.com/jleal52/claude-switch/internal/store"
+    type_mappings:
+      time.Time: "string"
+      bson.ObjectID: "string"
+    output_path: "web/src/api/types.ts"
+    include_files:
+      - "users.go"
+      - "wrappers.go"
+      - "pairing.go"
+      - "sessions.go"
+      - "messages.go"
+      - "auth_sessions.go"
+    exclude_types:
+      - "WrappersRepo"
+      - "WrapperTokensRepo"
+      - "UsersRepo"
+      - "PairingRepo"
+      - "SessionsRepo"
+      - "MessagesRepo"
+      - "AuthSessionsRepo"
