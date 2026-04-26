@@ -3,6 +3,7 @@ import { Route as RootRoute } from './__root';
 import { queryClient } from '@/api/queryClient';
 import { apiClient, ApiError } from '@/api/client';
 import type { MeResponse } from '@/api/hooks';
+import { AppShell } from '@/components/AppShell';
 
 async function ensureAuthed() {
   try {
@@ -22,5 +23,9 @@ export const Route = createRoute({
   getParentRoute: () => RootRoute,
   path: '/',
   beforeLoad: ensureAuthed,
-  component: () => <div className="p-4">Catalog (Task 9 fills this in)</div>,
+  component: () => (
+    <AppShell>
+      <div className="p-6">Catalog (Task 9 fills this in)</div>
+    </AppShell>
+  ),
 });

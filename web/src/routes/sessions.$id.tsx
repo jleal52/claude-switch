@@ -3,6 +3,7 @@ import { Route as RootRoute } from './__root';
 import { queryClient } from '@/api/queryClient';
 import { apiClient, ApiError } from '@/api/client';
 import type { MeResponse } from '@/api/hooks';
+import { AppShell } from '@/components/AppShell';
 
 export const Route = createRoute({
   getParentRoute: () => RootRoute,
@@ -17,6 +18,10 @@ export const Route = createRoute({
   },
   component: function SessionRoute() {
     const { id } = Route.useParams();
-    return <div className="p-4">Session terminal for {id} (Task 16 fills this in)</div>;
+    return (
+      <AppShell>
+        <div className="p-6">Session terminal for {id} (Task 16 fills this in)</div>
+      </AppShell>
+    );
   },
 });

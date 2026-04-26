@@ -3,6 +3,7 @@ import { Route as RootRoute } from './__root';
 import { queryClient } from '@/api/queryClient';
 import { apiClient, ApiError } from '@/api/client';
 import type { MeResponse } from '@/api/hooks';
+import { AppShell } from '@/components/AppShell';
 
 export const Route = createRoute({
   getParentRoute: () => RootRoute,
@@ -15,5 +16,9 @@ export const Route = createRoute({
       throw e;
     }
   },
-  component: () => <div className="p-4">Settings (Task 12 fills this in)</div>,
+  component: () => (
+    <AppShell>
+      <div className="p-6">Settings (Task 12 fills this in)</div>
+    </AppShell>
+  ),
 });
