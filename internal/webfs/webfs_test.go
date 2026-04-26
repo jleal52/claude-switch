@@ -12,14 +12,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestHandlerServesStubIndex(t *testing.T) {
+func TestHandlerServesIndex(t *testing.T) {
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/", nil)
 	Handler().ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
 
 	body, _ := io.ReadAll(rr.Body)
-	require.True(t, strings.Contains(string(body), "claude-switch"))
+	require.True(t, strings.Contains(string(body), "<div id=\"root\">"))
 }
 
 func TestHandlerSpaFallback(t *testing.T) {
