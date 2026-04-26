@@ -24,12 +24,12 @@ type WrapperDescriptor struct {
 // pairingDoc is the internal BSON-mapped struct for a pairing_codes document.
 // The public PairingCode type exposes hex string IDs instead of ObjectIDs.
 type pairingDoc struct {
-	OID       bson.ObjectID `bson:"_id,omitempty"`
-	UserOID   bson.ObjectID `bson:"user_id,omitempty"`
-	Code      string        `bson:"code"`
-	Status    string        `bson:"status"`
+	OID       bson.ObjectID     `bson:"_id,omitempty"`
+	UserOID   bson.ObjectID     `bson:"user_id,omitempty"`
+	Code      string            `bson:"code"`
+	Status    string            `bson:"status"`
 	Wrapper   WrapperDescriptor `bson:"wrapper"`
-	ExpiresAt time.Time     `bson:"expires_at"`
+	ExpiresAt time.Time         `bson:"expires_at"`
 }
 
 func (d *pairingDoc) toPairingCode() *PairingCode {
@@ -53,8 +53,8 @@ type PairingCode struct {
 	// _id and user_id are ObjectIDs in Mongo.
 	ID        string
 	Code      string
-	Status    string            // pending | approved | denied
-	UserID    string            // empty until approved
+	Status    string // pending | approved | denied
+	UserID    string // empty until approved
 	Wrapper   WrapperDescriptor
 	ExpiresAt time.Time
 }

@@ -63,7 +63,8 @@ func New() *Hub {
 }
 
 func (h *Hub) RegisterWrapper(id string, conn WrapperConn) {
-	h.mu.Lock(); defer h.mu.Unlock()
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	if old, ok := h.wrappers[id]; ok && old != conn {
 		old.Close()
 	}
@@ -160,7 +161,8 @@ func (h *Hub) Subscribe(sessionID string, b BrowserConn) ([]byte, error) {
 }
 
 func (h *Hub) Unsubscribe(sessionID string, b BrowserConn) {
-	h.mu.Lock(); defer h.mu.Unlock()
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	if set, ok := h.subscribers[sessionID]; ok {
 		delete(set, b)
 		if len(set) == 0 {
@@ -231,6 +233,7 @@ func (h *Hub) SnapshotRing(sessionID string) []byte {
 }
 
 func (h *Hub) AssignSession(sessionID, wrapperID string) {
-	h.mu.Lock(); defer h.mu.Unlock()
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	h.sessionWrap[sessionID] = wrapperID
 }

@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"context"
 	"sync"
 	"testing"
 
@@ -15,7 +16,8 @@ type fakeWrapperConn struct {
 }
 
 func (f *fakeWrapperConn) Send(fr OutboundFrame) error {
-	f.mu.Lock(); defer f.mu.Unlock()
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.closed {
 		return ErrWrapperOffline
 	}
@@ -23,7 +25,8 @@ func (f *fakeWrapperConn) Send(fr OutboundFrame) error {
 	return nil
 }
 func (f *fakeWrapperConn) Close() {
-	f.mu.Lock(); defer f.mu.Unlock()
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.closed = true
 }
 
@@ -32,7 +35,7 @@ func TestRegisterAndDispatchOpen(t *testing.T) {
 	conn := &fakeWrapperConn{}
 	h.RegisterWrapper("w1", conn)
 
-	require.NoError(t, h.OpenSession(nil, OpenSessionRequest{
+	require.NoError(t, h.OpenSession(context.Background(), OpenSessionRequest{
 		WrapperID: "w1", SessionID: "s1", Cwd: "/", Account: "default",
 	}))
 
@@ -42,7 +45,7 @@ func TestRegisterAndDispatchOpen(t *testing.T) {
 
 func TestOpenOnUnknownWrapperReturnsOffline(t *testing.T) {
 	h := New()
-	err := h.OpenSession(nil, OpenSessionRequest{
+	err := h.OpenSession(context.Background(), OpenSessionRequest{
 		WrapperID: "missing", SessionID: "s1", Cwd: "/", Account: "default",
 	})
 	require.ErrorIs(t, err, ErrWrapperOffline)

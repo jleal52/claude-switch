@@ -44,5 +44,5 @@ func TestAuthSessionsTouchExtendsExpiry(t *testing.T) {
 	require.NoError(t, s.AuthSessions().Touch(ctx, sess.ID, time.Hour))
 
 	got, _ := s.AuthSessions().GetByID(ctx, sess.ID)
-	require.True(t, got.ExpiresAt.Sub(time.Now()) > 30*time.Minute)
+	require.True(t, time.Until(got.ExpiresAt) > 30*time.Minute)
 }

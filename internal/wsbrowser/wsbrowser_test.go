@@ -60,7 +60,7 @@ func TestBrowserSubscribeReceivesReplay(t *testing.T) {
 	tt, _, _, _ := proto.Decode(raw)
 	require.Equal(t, "replay.start", tt)
 
-	mtyp, raw, err = conn.Read(context.Background())
+	mtyp, _, err = conn.Read(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, websocket.MessageBinary, mtyp)
 

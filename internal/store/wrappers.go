@@ -18,17 +18,17 @@ var ErrRevoked = errors.New("store: wrapper revoked")
 // wrapperDoc is the internal BSON-mapped struct for a wrapper document.
 // The public Wrapper type exposes hex string IDs instead of ObjectIDs.
 type wrapperDoc struct {
-	OID              bson.ObjectID  `bson:"_id,omitempty"`
-	UserOID          bson.ObjectID  `bson:"user_id"`
-	Name             string         `bson:"name"`
-	OS               string         `bson:"os"`
-	Arch             string         `bson:"arch"`
-	Version          string         `bson:"version"`
-	PairedAt         time.Time      `bson:"paired_at"`
-	LastSeenAt       time.Time      `bson:"last_seen_at"`
-	RefreshTokenHash string         `bson:"refresh_token_hash"`
-	RefreshTokenID   string         `bson:"refresh_token_id"`
-	RevokedAt        *time.Time     `bson:"revoked_at,omitempty"`
+	OID              bson.ObjectID `bson:"_id,omitempty"`
+	UserOID          bson.ObjectID `bson:"user_id"`
+	Name             string        `bson:"name"`
+	OS               string        `bson:"os"`
+	Arch             string        `bson:"arch"`
+	Version          string        `bson:"version"`
+	PairedAt         time.Time     `bson:"paired_at"`
+	LastSeenAt       time.Time     `bson:"last_seen_at"`
+	RefreshTokenHash string        `bson:"refresh_token_hash"`
+	RefreshTokenID   string        `bson:"refresh_token_id"`
+	RevokedAt        *time.Time    `bson:"revoked_at,omitempty"`
 }
 
 func (d *wrapperDoc) toWrapper() *Wrapper {

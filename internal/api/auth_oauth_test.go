@@ -13,10 +13,15 @@ import (
 )
 
 // fakeProvider returns a fixed profile on Exchange and a deterministic auth URL.
-type fakeProvider struct{ name string; profile store.OAuthProfile }
+type fakeProvider struct {
+	name    string
+	profile store.OAuthProfile
+}
 
-func (f *fakeProvider) Name() string                                      { return f.name }
-func (f *fakeProvider) AuthCodeURL(state string) string                    { return "https://oauth.test/auth?state=" + state }
+func (f *fakeProvider) Name() string { return f.name }
+func (f *fakeProvider) AuthCodeURL(state string) string {
+	return "https://oauth.test/auth?state=" + state
+}
 func (f *fakeProvider) Exchange(ctx context.Context, code string) (*store.OAuthProfile, error) {
 	cp := f.profile
 	return &cp, nil

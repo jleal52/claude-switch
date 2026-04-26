@@ -31,8 +31,10 @@ func TestMeReturnsUser(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	var got struct {
-		User                struct{ ID string `json:"id"` } `json:"user"`
-		ProvidersConfigured []string                        `json:"providers_configured"`
+		User struct {
+			ID string `json:"id"`
+		} `json:"user"`
+		ProvidersConfigured []string `json:"providers_configured"`
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
 	require.Equal(t, u.ID, got.User.ID)

@@ -45,8 +45,8 @@ func (d *sessionDoc) toSession() *Session {
 // Session is the public representation of a session document.
 type Session struct {
 	ID         string
-	UserID     string     // hex string of ObjectID
-	WrapperID  string     // hex string of ObjectID
+	UserID     string // hex string of ObjectID
+	WrapperID  string // hex string of ObjectID
 	JSONLUUID  string
 	Cwd        string
 	Account    string
