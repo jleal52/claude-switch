@@ -7,8 +7,15 @@ import {
 import { Link } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/api/client';
+import { Menu } from 'lucide-react';
 
-export function TopBar() {
+export function TopBar({
+  onOpenSidebar,
+  hasSidebar,
+}: {
+  onOpenSidebar?: () => void;
+  hasSidebar?: boolean;
+}) {
   const { data } = useMe();
   const qc = useQueryClient();
   const logout = useMutation({
@@ -21,7 +28,20 @@ export function TopBar() {
 
   return (
     <header className="flex h-14 items-center justify-between border-b bg-background px-4">
-      <Link to="/" className="text-lg font-semibold">claude-switch</Link>
+      <div className="flex items-center gap-2">
+        {hasSidebar && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            aria-label="Open menu"
+            onClick={onOpenSidebar}
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        )}
+        <Link to="/" className="text-lg font-semibold">claude-switch</Link>
+      </div>
       <div className="flex items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
