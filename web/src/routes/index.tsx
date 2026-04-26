@@ -4,6 +4,7 @@ import { queryClient } from '@/api/queryClient';
 import { apiClient, ApiError } from '@/api/client';
 import type { MeResponse } from '@/api/hooks';
 import { AppShell } from '@/components/AppShell';
+import { Sidebar } from '@/components/Sidebar';
 
 async function ensureAuthed() {
   try {
@@ -24,8 +25,10 @@ export const Route = createRoute({
   path: '/',
   beforeLoad: ensureAuthed,
   component: () => (
-    <AppShell>
-      <div className="p-6">Catalog (Task 9 fills this in)</div>
+    <AppShell sidebar={<Sidebar />}>
+      <div className="grid h-full place-items-center text-muted-foreground">
+        Select a session or pair a wrapper to start.
+      </div>
     </AppShell>
   ),
 });

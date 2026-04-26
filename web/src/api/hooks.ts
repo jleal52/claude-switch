@@ -25,3 +25,43 @@ export function useMe() {
     staleTime: 5 * 60_000,
   });
 }
+
+export interface WrapperJSON {
+  id: string;
+  name: string;
+  os: string;
+  arch: string;
+  version: string;
+  paired_at: string;
+  last_seen_at: string;
+  revoked: boolean;
+}
+
+export function useWrappers() {
+  return useQuery({
+    queryKey: ['wrappers'],
+    queryFn: () => apiClient<WrapperJSON[]>('/api/wrappers'),
+    staleTime: 30_000,
+  });
+}
+
+export interface SessionJSON {
+  id: string;
+  wrapper_id: string;
+  jsonl_uuid?: string;
+  cwd: string;
+  account: string;
+  status: 'starting' | 'running' | 'exited' | 'wrapper_offline';
+  created_at: string;
+  exited_at?: string;
+  exit_code?: number;
+  exit_reason?: string;
+}
+
+export function useSessions(statusFilter: 'live' | 'all' = 'live') {
+  return useQuery({
+    queryKey: ['sessions', statusFilter],
+    queryFn: () => apiClient<SessionJSON[]>('/api/sessions', { query: { status: statusFilter } }),
+    staleTime: 10_000,
+  });
+}
