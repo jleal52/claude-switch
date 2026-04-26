@@ -63,3 +63,40 @@ func TestMePostSettingsRequiresCSRF(t *testing.T) {
 	require.True(t, got.KeepTranscripts)
 	_ = io.EOF
 }
+
+func TestMeSettingsClampsRetention(t *testing.T) {
+	s := newTestStore(t, "me_clamp")
+	ctx := context.Background()
+	u, _ := s.Users().UpsertOAuth(ctx, fakeProfile("u3"))
+	sess, _ := s.AuthSessions().Create(ctx, u.ID, time.Hour)
+
+	h := NewMeHandlers(MeConfig{Store: s, ProvidersConfigured: []string{"github"}})
+
+	// Above 90 → clamped to 90.
+	body := []byte(`{"transcript_retention_days":1000}`)
+	req := httptest.NewRequest("POST", "/api/me/settings", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: sess.ID})
+	req.AddCookie(&http.Cookie{Name: csrf.CookieName, Value: sess.CSRFToken})
+	req.Header.Set(csrf.HeaderName, sess.CSRFToken)
+	rr := httptest.NewRecorder()
+	NewAuthMiddleware(s).Require(http.HandlerFunc(h.UpdateSettings)).ServeHTTP(rr, req)
+	require.Equal(t, http.StatusNoContent, rr.Code)
+
+	got, _ := s.Users().GetByID(ctx, u.ID)
+	require.Equal(t, 90, got.TranscriptRetentionDays)
+
+	// Below 1 → clamped to 1.
+	body = []byte(`{"transcript_retention_days":0}`)
+	req = httptest.NewRequest("POST", "/api/me/settings", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: sess.ID})
+	req.AddCookie(&http.Cookie{Name: csrf.CookieName, Value: sess.CSRFToken})
+	req.Header.Set(csrf.HeaderName, sess.CSRFToken)
+	rr = httptest.NewRecorder()
+	NewAuthMiddleware(s).Require(http.HandlerFunc(h.UpdateSettings)).ServeHTTP(rr, req)
+	require.Equal(t, http.StatusNoContent, rr.Code)
+
+	got, _ = s.Users().GetByID(ctx, u.ID)
+	require.Equal(t, 1, got.TranscriptRetentionDays)
+}

@@ -21,9 +21,10 @@ type User struct {
 	Email           string        `bson:"email,omitempty"`
 	Name            string        `bson:"name,omitempty"`
 	AvatarURL       string        `bson:"avatar_url,omitempty"`
-	KeepTranscripts bool          `bson:"keep_transcripts"`
-	CreatedAt       time.Time     `bson:"created_at"`
-	LastLoginAt     time.Time     `bson:"last_login_at"`
+	KeepTranscripts         bool          `bson:"keep_transcripts"`
+	TranscriptRetentionDays int           `bson:"transcript_retention_days,omitempty"`
+	CreatedAt               time.Time     `bson:"created_at"`
+	LastLoginAt             time.Time     `bson:"last_login_at"`
 }
 
 // populateID fills the string ID field from the bson ObjectID.
@@ -99,6 +100,17 @@ func (r *UsersRepo) MarkLogin(ctx context.Context, id string) error {
 func (r *UsersRepo) SetKeepTranscripts(ctx context.Context, id string, v bool) error {
 	_, err := r.coll.UpdateByID(ctx, objectIDFromHex(id), bson.M{
 		"$set": bson.M{"keep_transcripts": v},
+	})
+	return err
+}
+
+// SetTranscriptRetention persists the user's preferred retention window in
+// days. Note: the actual TTL on session_messages is global (90 days at index
+// creation); this setting is clamped to 1-90 by callers and is informational
+// for shorter retention (which would require a periodic cleanup job, not in MVP).
+func (r *UsersRepo) SetTranscriptRetention(ctx context.Context, id string, days int) error {
+	_, err := r.coll.UpdateByID(ctx, objectIDFromHex(id), bson.M{
+		"$set": bson.M{"transcript_retention_days": days},
 	})
 	return err
 }

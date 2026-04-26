@@ -67,3 +67,17 @@ func TestUsersSetKeepTranscripts(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, got.KeepTranscripts)
 }
+
+func TestUsersSetTranscriptRetention(t *testing.T) {
+	s := NewTestStore(t, "users_retention")
+	ctx := context.Background()
+
+	u, _ := s.Users().UpsertOAuth(ctx, OAuthProfile{Provider: "github", Subject: "ret1"})
+	require.Equal(t, 0, u.TranscriptRetentionDays)
+
+	require.NoError(t, s.Users().SetTranscriptRetention(ctx, u.ID, 30))
+
+	got, err := s.Users().GetByID(ctx, u.ID)
+	require.NoError(t, err)
+	require.Equal(t, 30, got.TranscriptRetentionDays)
+}

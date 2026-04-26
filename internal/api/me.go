@@ -42,7 +42,8 @@ func (h *MeHandlers) Get(w http.ResponseWriter, r *http.Request) {
 // UpdateSettings is POST /api/me/settings.
 func (h *MeHandlers) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		KeepTranscripts *bool `json:"keep_transcripts,omitempty"`
+		KeepTranscripts         *bool `json:"keep_transcripts,omitempty"`
+		TranscriptRetentionDays *int  `json:"transcript_retention_days,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "bad json", http.StatusBadRequest)
@@ -51,6 +52,19 @@ func (h *MeHandlers) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	u := MustUser(r.Context())
 	if body.KeepTranscripts != nil {
 		if err := h.cfg.Store.Users().SetKeepTranscripts(r.Context(), u.ID, *body.KeepTranscripts); err != nil {
+			http.Error(w, "store", http.StatusInternalServerError)
+			return
+		}
+	}
+	if body.TranscriptRetentionDays != nil {
+		days := *body.TranscriptRetentionDays
+		if days < 1 {
+			days = 1
+		}
+		if days > 90 {
+			days = 90
+		}
+		if err := h.cfg.Store.Users().SetTranscriptRetention(r.Context(), u.ID, days); err != nil {
 			http.Error(w, "store", http.StatusInternalServerError)
 			return
 		}
