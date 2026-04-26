@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
 
 // MeResponse mirrors the server's /api/me JSON shape (snake_case fields).
@@ -63,5 +63,23 @@ export function useSessions(statusFilter: 'live' | 'all' = 'live') {
     queryKey: ['sessions', statusFilter],
     queryFn: () => apiClient<SessionJSON[]>('/api/sessions', { query: { status: statusFilter } }),
     staleTime: 10_000,
+  });
+}
+
+export interface CreateSessionInput {
+  wrapper_id: string;
+  cwd: string;
+  account?: string;
+  args?: string[];
+}
+
+export function useCreateSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateSessionInput) =>
+      apiClient<SessionJSON>('/api/sessions', { method: 'POST', body: input }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sessions'] });
+    },
   });
 }

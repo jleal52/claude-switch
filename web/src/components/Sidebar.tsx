@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router';
 import { useWrappers, useSessions, type WrapperJSON, type SessionJSON } from '@/api/hooks';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
+import { NewSessionModal } from './NewSessionModal';
 
 export function Sidebar() {
   const wrappers = useWrappers();
@@ -47,9 +48,14 @@ export function Sidebar() {
               </li>
             ))}
           </ul>
-          <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground" disabled>
-            <Plus className="mr-1 h-3 w-3" /> Nueva sesión (Task 10)
-          </Button>
+          <NewSessionModal
+            defaultWrapperID={w.id}
+            trigger={
+              <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground">
+                <Plus className="mr-1 h-3 w-3" /> Nueva sesión
+              </Button>
+            }
+          />
         </section>
       ))}
       <div className="mt-auto border-t pt-2">
