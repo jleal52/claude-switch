@@ -98,6 +98,17 @@ export function useRedeemPair() {
   });
 }
 
+export interface MessageJSON { ts: string; entry: string }
+
+export function useSessionMessages(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['session', id, 'messages'],
+    queryFn: () => apiClient<MessageJSON[]>(`/api/sessions/${id}/messages`),
+    enabled,
+    staleTime: 10_000,
+  });
+}
+
 export interface SettingsInput {
   keep_transcripts?: boolean;
   transcript_retention_days?: number;
