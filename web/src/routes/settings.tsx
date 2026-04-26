@@ -4,6 +4,8 @@ import { queryClient } from '@/api/queryClient';
 import { apiClient, ApiError } from '@/api/client';
 import type { MeResponse } from '@/api/hooks';
 import { AppShell } from '@/components/AppShell';
+import { Sidebar } from '@/components/Sidebar';
+import { SettingsForm } from '@/components/SettingsForm';
 
 export const Route = createRoute({
   getParentRoute: () => RootRoute,
@@ -17,8 +19,8 @@ export const Route = createRoute({
     }
   },
   component: () => (
-    <AppShell>
-      <div className="p-6">Settings (Task 12 fills this in)</div>
+    <AppShell sidebar={<Sidebar />}>
+      <SettingsForm />
     </AppShell>
   ),
 });

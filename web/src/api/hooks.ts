@@ -97,3 +97,19 @@ export function useRedeemPair() {
     },
   });
 }
+
+export interface SettingsInput {
+  keep_transcripts?: boolean;
+  transcript_retention_days?: number;
+}
+
+export function useUpdateSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SettingsInput) =>
+      apiClient<void>('/api/me/settings', { method: 'POST', body: input }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['me'] });
+    },
+  });
+}
