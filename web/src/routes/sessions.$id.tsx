@@ -4,6 +4,8 @@ import { queryClient } from '@/api/queryClient';
 import { apiClient, ApiError } from '@/api/client';
 import type { MeResponse } from '@/api/hooks';
 import { AppShell } from '@/components/AppShell';
+import { Sidebar } from '@/components/Sidebar';
+import { SessionView } from '@/components/SessionView';
 
 export const Route = createRoute({
   getParentRoute: () => RootRoute,
@@ -19,8 +21,8 @@ export const Route = createRoute({
   component: function SessionRoute() {
     const { id } = Route.useParams();
     return (
-      <AppShell>
-        <div className="p-6">Session terminal for {id} (Task 16 fills this in)</div>
+      <AppShell sidebar={<Sidebar />}>
+        <SessionView sessionID={id} />
       </AppShell>
     );
   },
