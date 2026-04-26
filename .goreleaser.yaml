@@ -25,11 +25,17 @@ builds:
     goarch: [amd64, arm64]
 
 archives:
-  - formats: [tar.gz]
+  - id: claude-switch
+    ids: [claude-switch]
+    formats: [tar.gz]
     format_overrides:
       - goos: windows
         formats: [zip]
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "claude-switch_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  - id: claude-switch-server
+    ids: [claude-switch-server]
+    formats: [tar.gz]
+    name_template: "claude-switch-server_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
 checksum:
   name_template: "checksums.txt"
