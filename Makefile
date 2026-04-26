@@ -1,4 +1,4 @@
-.PHONY: build test lint tidy build-server docker-server codegen-ts
+.PHONY: build test lint tidy build-server docker-server codegen-ts web dist-sync
 
 build:
 	go build -o bin/claude-switch ./cmd/claude-switch
@@ -22,3 +22,10 @@ docker-server:
 # Install once with: go install github.com/gzuidhof/tygo@latest
 codegen-ts:
 	tygo generate
+
+web:
+	cd web && npm ci && npm run build
+
+dist-sync:
+	rm -rf internal/webfs/dist
+	cp -R web/dist internal/webfs/dist
