@@ -14,13 +14,13 @@ var ErrNotFound = errors.New("store: not found")
 
 // User is the persisted shape of an end-user account.
 type User struct {
-	OID             bson.ObjectID `bson:"_id,omitempty"`
-	ID              string        `bson:"-"`
-	OAuthProvider   string        `bson:"oauth_provider"`
-	OAuthSubject    string        `bson:"oauth_subject"`
-	Email           string        `bson:"email,omitempty"`
-	Name            string        `bson:"name,omitempty"`
-	AvatarURL       string        `bson:"avatar_url,omitempty"`
+	OID                     bson.ObjectID `bson:"_id,omitempty"`
+	ID                      string        `bson:"-"`
+	OAuthProvider           string        `bson:"oauth_provider"`
+	OAuthSubject            string        `bson:"oauth_subject"`
+	Email                   string        `bson:"email,omitempty"`
+	Name                    string        `bson:"name,omitempty"`
+	AvatarURL               string        `bson:"avatar_url,omitempty"`
 	KeepTranscripts         bool          `bson:"keep_transcripts"`
 	TranscriptRetentionDays int           `bson:"transcript_retention_days,omitempty"`
 	CreatedAt               time.Time     `bson:"created_at"`
