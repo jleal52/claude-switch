@@ -83,3 +83,17 @@ export function useCreateSession() {
     },
   });
 }
+
+export interface PairRedeemInput { code: string; deny?: boolean }
+export interface PairRedeemResult { name: string; os: string; arch: string; version: string }
+
+export function useRedeemPair() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: PairRedeemInput) =>
+      apiClient<PairRedeemResult>('/api/pair/redeem', { method: 'POST', body: input }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['wrappers'] });
+    },
+  });
+}
