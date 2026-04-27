@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"sync"
@@ -78,6 +79,15 @@ func (s *Supervisor) Open(ctx context.Context, id, cwd, account string, extraArg
 	args = append(args, extraArgs...)
 	cmd := exec.Command(s.cfg.ClaudeBin, args...)
 	cmd.Dir = cwd
+	// Inherit env, then force a color-capable TERM so claude (and any tool
+	// that respects $TERM) emits ANSI escapes. xterm.js renders them.
+	cmd.Env = append(os.Environ(),
+		"TERM=xterm-256color",
+		"COLORTERM=truecolor",
+		"FORCE_COLOR=1",
+		"CLICOLOR=1",
+		"CLICOLOR_FORCE=1",
+	)
 	process.ApplyPdeathsig(cmd)
 
 	p, err := s.cfg.Start(cmd, pty.Size{Cols: 120, Rows: 32})
