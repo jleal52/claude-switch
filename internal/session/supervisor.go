@@ -17,7 +17,7 @@ import (
 // Config wires the supervisor's external dependencies.
 type Config struct {
 	ClaudeBin  string   // path to `claude` (or test stand-in)
-	BaseArgs   []string // prefix args before server-supplied args (default: --spawn same-dir)
+	BaseArgs   []string // prefix args before server-supplied args (default: empty — plain interactive claude REPL)
 	Start      StartFn  // PTY start function
 	ClaudeHome string   // path to Claude's home dir (e.g. ~/.claude); enables JSONL discovery when set
 	// Coalescing policy (defaults from spec).
@@ -35,7 +35,7 @@ func (c Config) defaulted() Config {
 		c.FlushBytes = 16 * 1024
 	}
 	if c.BaseArgs == nil {
-		c.BaseArgs = []string{"remote-control", "--spawn", "same-dir"}
+		c.BaseArgs = []string{}
 	}
 	return c
 }
