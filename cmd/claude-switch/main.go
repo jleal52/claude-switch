@@ -186,6 +186,10 @@ func signalCtx() context.Context {
 	return ctx
 }
 
+// httpBaseFromWs strips ws:// or wss:// scheme and path, returning just
+// scheme://host[:port]. The /device/token/refresh endpoint is rooted at
+// the server, not at the wrapper WS path, so we must drop the entire
+// path component.
 func httpBaseFromWs(endpoint string) string {
 	base := endpoint
 	if strings.HasPrefix(base, "wss://") {
@@ -193,8 +197,14 @@ func httpBaseFromWs(endpoint string) string {
 	} else if strings.HasPrefix(base, "ws://") {
 		base = "http://" + base[len("ws://"):]
 	}
-	if i := strings.LastIndex(base, "/"); i > len("https://") {
-		base = base[:i]
+	// Find the first '/' after "scheme://" and trim from there onward.
+	schemeEnd := strings.Index(base, "://")
+	if schemeEnd < 0 {
+		return base
+	}
+	hostStart := schemeEnd + 3
+	if i := strings.Index(base[hostStart:], "/"); i >= 0 {
+		base = base[:hostStart+i]
 	}
 	return base
 }
