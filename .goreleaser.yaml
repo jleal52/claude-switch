@@ -71,6 +71,18 @@ brews:
     skip_upload: auto    # skip for prereleases / snapshots
     install: |
       bin.install "claude-switch"
+    # `brew services start claude-switch` registers a per-user LaunchAgent
+    # (no sudo → ~/Library/LaunchAgents/), so the wrapper runs as the
+    # installing user with access to their ~/.claude transcripts and
+    # credentials. PATH is extended with ~/.local/bin so the official
+    # Anthropic installer's `claude` binary is found.
+    service: |
+      run [opt_bin/"claude-switch"]
+      keep_alive true
+      working_dir Dir.home
+      log_path var/"log/claude-switch.log"
+      error_log_path var/"log/claude-switch.log"
+      environment_variables PATH: "#{Dir.home}/.local/bin:#{std_service_path_env}"
     test: |
       output = shell_output("#{bin}/claude-switch pair 2>&1", 2)
       assert_match "pair requires a server base URL", output

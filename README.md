@@ -46,10 +46,26 @@ which claude-switch         # → /opt/homebrew/bin/claude-switch  (Apple Silico
                             #   /usr/local/bin/claude-switch     (Intel)
 ```
 
+After `brew install` you still need to pair with the server and start the wrapper. Pairing only writes credentials; the wrapper has to be running for the portal to see it (otherwise the portal shows `wrapper offline`).
+
+```bash
+claude-switch pair https://your-server.example.com   # opens device-code flow
+brew services start claude-switch                    # run as a per-user LaunchAgent
+```
+
+`brew services start` (without `sudo`) registers the wrapper as a **per-user LaunchAgent** in `~/Library/LaunchAgents/`, so it runs under your uid and can read your `~/.claude` transcripts and stored credentials. Logs land in `$(brew --prefix)/var/log/claude-switch.log`. Manage it with:
+
+```bash
+brew services list                          # see status
+brew services restart claude-switch         # after upgrade or config change
+brew services stop claude-switch            # unload the agent
+```
+
 Day-to-day:
 
 ```bash
 brew upgrade claude-switch  # pull the latest tagged release
+brew services restart claude-switch  # pick up the new binary
 brew uninstall claude-switch
 brew reinstall claude-switch
 ```
