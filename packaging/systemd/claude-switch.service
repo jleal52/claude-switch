@@ -1,0 +1,16 @@
+[Unit]
+Description=claude-switch wrapper (drives local claude REPL over WebSocket)
+Documentation=https://github.com/jleal52/claude-switch
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/claude-switch
+Restart=on-failure
+RestartSec=5
+WorkingDirectory=%h
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+
+[Install]
+WantedBy=default.target
