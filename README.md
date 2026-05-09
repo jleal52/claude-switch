@@ -85,7 +85,7 @@ brew install claude-switch
 
 ```bash
 ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
-VERSION=<paste latest tag, e.g. 0.1.0>
+VERSION=$(curl -fsSL https://api.github.com/repos/jleal52/claude-switch/releases/latest | sed -nE 's/.*"tag_name": *"v([^"]+)".*/\1/p')
 URL="https://github.com/jleal52/claude-switch/releases/download/v${VERSION}/claude-switch_${VERSION}_darwin_${ARCH}.tar.gz"
 
 curl -fLO "$URL"
@@ -105,7 +105,7 @@ claude-switch --help
 
 ```bash
 ARCH=$(dpkg --print-architecture)   # → amd64 or arm64
-VERSION=<paste latest tag, e.g. 0.3.2>
+VERSION=$(curl -fsSL https://api.github.com/repos/jleal52/claude-switch/releases/latest | sed -nE 's/.*"tag_name": *"v([^"]+)".*/\1/p')
 curl -fLO "https://github.com/jleal52/claude-switch/releases/download/v${VERSION}/claude-switch_${VERSION}_linux_${ARCH}.deb"
 sudo apt install "./claude-switch_${VERSION}_linux_${ARCH}.deb"
 ```
@@ -114,7 +114,7 @@ sudo apt install "./claude-switch_${VERSION}_linux_${ARCH}.deb"
 
 ```bash
 ARCH=$(uname -m)                    # → x86_64 or aarch64
-VERSION=<paste latest tag>
+VERSION=$(curl -fsSL https://api.github.com/repos/jleal52/claude-switch/releases/latest | sed -nE 's/.*"tag_name": *"v([^"]+)".*/\1/p')
 curl -fLO "https://github.com/jleal52/claude-switch/releases/download/v${VERSION}/claude-switch_${VERSION}_linux_${ARCH}.rpm"
 sudo dnf install "./claude-switch_${VERSION}_linux_${ARCH}.rpm"
 ```
@@ -140,7 +140,7 @@ sudo loginctl enable-linger "$USER"
 
 ```bash
 ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
-VERSION=<paste latest tag>
+VERSION=$(curl -fsSL https://api.github.com/repos/jleal52/claude-switch/releases/latest | sed -nE 's/.*"tag_name": *"v([^"]+)".*/\1/p')
 URL="https://github.com/jleal52/claude-switch/releases/download/v${VERSION}/claude-switch_${VERSION}_linux_${ARCH}.tar.gz"
 
 curl -fLO "$URL"
@@ -158,7 +158,7 @@ claude-switch --help
 Only `windows_amd64` is published.
 
 ```powershell
-$Version = "<paste latest tag>"
+$Version = (Invoke-RestMethod 'https://api.github.com/repos/jleal52/claude-switch/releases/latest').tag_name -replace '^v',''
 $Url     = "https://github.com/jleal52/claude-switch/releases/download/v$Version/claude-switch_${Version}_windows_amd64.zip"
 $Dest    = "$Env:LOCALAPPDATA\claude-switch"
 
