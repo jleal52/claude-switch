@@ -10,7 +10,7 @@ function withQuery(client: QueryClient) {
 }
 
 describe('<Login />', () => {
-  it('renders one button per configured provider', async () => {
+  it('renders a GitHub button when github is configured', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -23,6 +23,6 @@ describe('<Login />', () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(<Login />, { wrapper: withQuery(qc) });
     expect(await screen.findByRole('link', { name: /github/i })).toHaveAttribute('href', '/auth/github/login');
-    expect(await screen.findByRole('link', { name: /google/i })).toHaveAttribute('href', '/auth/google/login');
+    expect(screen.queryByRole('link', { name: /google/i })).toBeNull();
   });
 });
