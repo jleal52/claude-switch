@@ -38,20 +38,32 @@ Pick the archive matching your OS and CPU, verify the checksum, extract the `cla
 brew install jleal52/tap/claude-switch
 ```
 
-That command works on both Intel and Apple Silicon — the tap formula picks the matching `darwin_amd64` / `darwin_arm64` archive automatically. To upgrade later:
+One command, both architectures: the formula publishes both `darwin_amd64` and `darwin_arm64` URLs and Homebrew picks the matching one automatically. Verify after install:
 
 ```bash
-brew upgrade claude-switch
+claude-switch pair          # → "pair requires a server base URL" (binary OK)
+which claude-switch         # → /opt/homebrew/bin/claude-switch  (Apple Silicon)
+                            #   /usr/local/bin/claude-switch     (Intel)
 ```
 
-If you prefer not to pin the tap each time, you can tap it once:
+Day-to-day:
 
 ```bash
-brew tap jleal52/tap        # adds github.com/jleal52/homebrew-tap
+brew upgrade claude-switch  # pull the latest tagged release
+brew uninstall claude-switch
+brew reinstall claude-switch
+```
+
+If you'd rather tap once and reference the formula by short name:
+
+```bash
+brew tap jleal52/tap        # clones github.com/jleal52/homebrew-tap
 brew install claude-switch
 ```
 
-> The tap repo is `github.com/jleal52/homebrew-tap`; goreleaser pushes a fresh formula to it on every release.
+**No Gatekeeper workaround needed.** Unlike the manual tarball below, Homebrew downloads via its own client (not Safari/curl) so the binary is never quarantined. The binaries are still **not code-signed or notarized**, so `spctl --assess` will report them as unsigned — that's expected and doesn't block execution.
+
+> The formula is rendered by goreleaser on every tagged release and pushed to [`github.com/jleal52/homebrew-tap`](https://github.com/jleal52/homebrew-tap). Available since `v0.3.1`.
 
 ### macOS — manual tarball (fallback)
 
@@ -148,20 +160,22 @@ Credentials are written to a per-user file (location reported by `claude-switch 
 
 ## Roadmap for distribution
 
-- **macOS Homebrew tap** — done (`.goreleaser.yaml` `brews:` block; pushes to `jleal52/homebrew-tap` on each release).
+- **macOS Homebrew tap** — ✅ live since `v0.3.1` (`.goreleaser.yaml` `brews:` block, pushes `Formula/claude-switch.rb` to [`jleal52/homebrew-tap`](https://github.com/jleal52/homebrew-tap) on every tagged release).
 - **Scoop bucket** (`scoops:`) for `scoop install claude-switch` on Windows.
 - **`winget` manifest** (separate publishing step) for `winget install claude-switch`.
 - **`nfpms:`** to emit `.deb` / `.rpm` / `.apk` packages alongside the Linux tarballs.
+- **Code signing + notarization** for macOS so `spctl --assess` accepts the binary without warnings (requires an Apple Developer ID + `notarize:` block in goreleaser).
 - **Docker image for the wrapper** — currently only the *server* has a `Dockerfile.server`; the wrapper has no image because it must spawn a host PTY.
 
-### One-time setup needed before the next release
+### How a release is cut
 
-Goreleaser will fail until the tap is reachable and authorized:
+```bash
+git tag v0.X.Y
+git push origin v0.X.Y
+```
 
-1. Create an empty public repo `github.com/jleal52/homebrew-tap` (must be exactly that name — Homebrew convention).
-2. Generate a fine-grained PAT with `Contents: write` on that single repo: <https://github.com/settings/tokens?type=beta>.
-3. Add it as the `HOMEBREW_TAP_TOKEN` Actions secret in `github.com/jleal52/claude-switch` (Settings → Secrets and variables → Actions).
+That triggers `.github/workflows/release.yml` → goreleaser → publishes the GitHub Release **and** updates the Homebrew formula in the tap. End users see the new version with `brew upgrade claude-switch`.
 
-After that, `git tag v0.1.0 && git push --tags` triggers `.github/workflows/release.yml`, which runs goreleaser and pushes `Formula/claude-switch.rb` into the tap. Users can then `brew install jleal52/tap/claude-switch` immediately.
+The release pipeline depends on the `HOMEBREW_TAP_TOKEN` repository secret (fine-grained PAT with `Contents: write` on `jleal52/homebrew-tap`); rotate it before it expires or releases will fail at the brew step.
 
 PRs welcome.
