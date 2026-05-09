@@ -40,6 +40,41 @@ archives:
 checksum:
   name_template: "checksums.txt"
 
+# Homebrew tap for macOS (Intel + Apple Silicon).
+#
+# Prerequisites (one-time setup):
+#   1. Create an empty public repo: github.com/jleal52/homebrew-tap
+#   2. Generate a fine-grained PAT with `Contents: write` scoped to that
+#      repo only (https://github.com/settings/tokens?type=beta).
+#   3. Add it as the secret HOMEBREW_TAP_TOKEN in
+#      github.com/jleal52/claude-switch (Settings → Secrets → Actions).
+#
+# Goreleaser then renders Formula/claude-switch.rb from the darwin
+# archives on every tagged release, and users install with:
+#
+#     brew install jleal52/tap/claude-switch
+brews:
+  - name: claude-switch
+    ids: [claude-switch]
+    repository:
+      owner: jleal52
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "chore(formula): bump claude-switch to {{ .Tag }}"
+    homepage: "https://github.com/jleal52/claude-switch"
+    description: "Wrapper that drives multiple Claude CLI sessions remotely over WebSocket."
+    skip_upload: auto    # skip for prereleases / snapshots
+    install: |
+      bin.install "claude-switch"
+    test: |
+      output = shell_output("#{bin}/claude-switch pair 2>&1", 2)
+      assert_match "pair requires a server base URL", output
+
 release:
   github:
     owner: jleal52

@@ -15,7 +15,7 @@ Current status: design phase for subsystem 1. See `docs/superpowers/specs/`.
 
 ## Installing the wrapper
 
-> **Distribution status (heads up):** today the only pre-built distribution channel is **GitHub Releases**. There is **no** Homebrew tap, Scoop bucket, `winget` manifest, or `apt`/`yum`/`pacman` repo yet — the `.goreleaser.yaml` only emits tarballs/zips. Until those are added, "install without recompiling" means *download the release archive for your OS+arch and put the binary on your `PATH`*. Binaries are not code-signed or notarized.
+> **Distribution status (heads up):** macOS has a **Homebrew tap** (Intel + Apple Silicon). Linux and Windows still install from the **GitHub Release** tarballs/zips — no Scoop bucket, `winget` manifest, or `apt`/`yum`/`pacman` repo yet. Binaries are not code-signed or notarized.
 
 Releases live at:
 
@@ -32,10 +32,30 @@ Each release publishes:
 
 Pick the archive matching your OS and CPU, verify the checksum, extract the `claude-switch` binary, and put it somewhere on `PATH`.
 
-### macOS (Apple Silicon or Intel)
+### macOS — Homebrew (recommended, Intel + Apple Silicon)
 
 ```bash
-# Pick arm64 on Apple Silicon, amd64 on Intel.
+brew install jleal52/tap/claude-switch
+```
+
+That command works on both Intel and Apple Silicon — the tap formula picks the matching `darwin_amd64` / `darwin_arm64` archive automatically. To upgrade later:
+
+```bash
+brew upgrade claude-switch
+```
+
+If you prefer not to pin the tap each time, you can tap it once:
+
+```bash
+brew tap jleal52/tap        # adds github.com/jleal52/homebrew-tap
+brew install claude-switch
+```
+
+> The tap repo is `github.com/jleal52/homebrew-tap`; goreleaser pushes a fresh formula to it on every release.
+
+### macOS — manual tarball (fallback)
+
+```bash
 ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
 VERSION=<paste latest tag, e.g. 0.1.0>
 URL="https://github.com/jleal52/claude-switch/releases/download/v${VERSION}/claude-switch_${VERSION}_darwin_${ARCH}.tar.gz"
@@ -128,12 +148,20 @@ Credentials are written to a per-user file (location reported by `claude-switch 
 
 ## Roadmap for distribution
 
-If you want install paths that don't involve `curl | tar`, the `.goreleaser.yaml` can grow these without code changes — they just need wiring + auth tokens in CI:
-
-- **Homebrew tap** (`brews:` block) for `brew install jleal52/tap/claude-switch` on macOS + Linux.
+- **macOS Homebrew tap** — done (`.goreleaser.yaml` `brews:` block; pushes to `jleal52/homebrew-tap` on each release).
 - **Scoop bucket** (`scoops:`) for `scoop install claude-switch` on Windows.
 - **`winget` manifest** (separate publishing step) for `winget install claude-switch`.
-- **`nfpms:`** to emit `.deb` / `.rpm` / `.apk` packages alongside the tarballs.
+- **`nfpms:`** to emit `.deb` / `.rpm` / `.apk` packages alongside the Linux tarballs.
 - **Docker image for the wrapper** — currently only the *server* has a `Dockerfile.server`; the wrapper has no image because it must spawn a host PTY.
+
+### One-time setup needed before the next release
+
+Goreleaser will fail until the tap is reachable and authorized:
+
+1. Create an empty public repo `github.com/jleal52/homebrew-tap` (must be exactly that name — Homebrew convention).
+2. Generate a fine-grained PAT with `Contents: write` on that single repo: <https://github.com/settings/tokens?type=beta>.
+3. Add it as the `HOMEBREW_TAP_TOKEN` Actions secret in `github.com/jleal52/claude-switch` (Settings → Secrets and variables → Actions).
+
+After that, `git tag v0.1.0 && git push --tags` triggers `.github/workflows/release.yml`, which runs goreleaser and pushes `Formula/claude-switch.rb` into the tap. Users can then `brew install jleal52/tap/claude-switch` immediately.
 
 PRs welcome.

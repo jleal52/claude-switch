@@ -18,3 +18,7 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # PAT with `Contents: write` on jleal52/homebrew-tap. Required so
+          # goreleaser can push the rendered Formula/claude-switch.rb. If the
+          # secret is missing the release will fail at the brew step.
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
