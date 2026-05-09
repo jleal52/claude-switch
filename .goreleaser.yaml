@@ -40,6 +40,43 @@ archives:
 checksum:
   name_template: "checksums.txt"
 
+# Linux native packages (.deb / .rpm).
+#
+# Generated for amd64 + arm64 from the same `claude-switch` build that
+# powers the tarballs and the Homebrew tap. Each package installs the
+# binary at /usr/bin/claude-switch and ships a systemd **user** unit
+# at /usr/lib/systemd/user/claude-switch.service so the wrapper runs
+# under the installing user's uid (it needs read access to that user's
+# ~/.claude transcripts and stored credentials — a system unit running
+# as root would not see them).
+#
+# After installation, end users enable the unit themselves:
+#
+#     systemctl --user enable --now claude-switch
+#
+# (And `loginctl enable-linger $USER` if they want it to keep running
+# while logged out.)
+#
+# The packages are uploaded as GitHub Release assets — there is no
+# hosted APT/YUM repo yet, so the install path is `apt install ./*.deb`
+# / `dnf install ./*.rpm` against the downloaded file.
+nfpms:
+  - id: claude-switch
+    package_name: claude-switch
+    ids: [claude-switch]
+    vendor: jleal52
+    homepage: "https://github.com/jleal52/claude-switch"
+    maintainer: "jleal52 <noreply@github.com>"
+    description: "Wrapper that drives multiple Claude CLI sessions remotely over WebSocket."
+    license: Proprietary
+    formats: [deb, rpm]
+    bindir: /usr/bin
+    section: utils
+    contents:
+      - src: packaging/systemd/claude-switch.service
+        dst: /usr/lib/systemd/user/claude-switch.service
+        type: config|noreplace
+
 # Homebrew tap for macOS (Intel + Apple Silicon).
 #
 # Prerequisites (one-time setup):

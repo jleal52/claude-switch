@@ -101,7 +101,42 @@ xattr -d com.apple.quarantine /usr/local/bin/claude-switch 2>/dev/null || true
 claude-switch --help
 ```
 
-### Linux
+### Linux — `.deb` (Debian / Ubuntu, recommended)
+
+```bash
+ARCH=$(dpkg --print-architecture)   # → amd64 or arm64
+VERSION=<paste latest tag, e.g. 0.3.2>
+curl -fLO "https://github.com/jleal52/claude-switch/releases/download/v${VERSION}/claude-switch_${VERSION}_linux_${ARCH}.deb"
+sudo apt install "./claude-switch_${VERSION}_linux_${ARCH}.deb"
+```
+
+### Linux — `.rpm` (Fedora / RHEL / openSUSE)
+
+```bash
+ARCH=$(uname -m)                    # → x86_64 or aarch64
+VERSION=<paste latest tag>
+curl -fLO "https://github.com/jleal52/claude-switch/releases/download/v${VERSION}/claude-switch_${VERSION}_linux_${ARCH}.rpm"
+sudo dnf install "./claude-switch_${VERSION}_linux_${ARCH}.rpm"
+```
+
+Both packages drop the binary at `/usr/bin/claude-switch` and install a **systemd user unit** at `/usr/lib/systemd/user/claude-switch.service`. After installing, pair the wrapper and start the service as your user (no `sudo`):
+
+```bash
+claude-switch pair https://your-server.example.com
+systemctl --user enable --now claude-switch
+systemctl --user status claude-switch        # verify it's running
+journalctl --user -u claude-switch -f        # tail logs
+```
+
+If you want the wrapper to keep running while you're logged out, enable user lingering once:
+
+```bash
+sudo loginctl enable-linger "$USER"
+```
+
+> No hosted APT / YUM repo yet — `apt upgrade` won't pull new versions automatically. Re-run the `curl` + `apt install` (or `dnf install`) on each release. A signed `gh-pages` repo is on the roadmap.
+
+### Linux — manual tarball (any distro, no service unit)
 
 ```bash
 ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
