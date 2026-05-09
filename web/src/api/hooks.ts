@@ -35,13 +35,16 @@ export interface WrapperJSON {
   paired_at: string;
   last_seen_at: string;
   revoked: boolean;
+  online: boolean;
 }
 
 export function useWrappers() {
   return useQuery({
     queryKey: ['wrappers'],
     queryFn: () => apiClient<WrapperJSON[]>('/api/wrappers'),
-    staleTime: 30_000,
+    staleTime: 5_000,
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
   });
 }
 

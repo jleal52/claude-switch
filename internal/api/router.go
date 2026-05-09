@@ -41,7 +41,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 	mw := NewAuthMiddleware(cfg.Store)
 	me := NewMeHandlers(MeConfig{Store: cfg.Store, ProvidersConfigured: providerNames(cfg.Providers)})
-	wrappers := NewWrappersHandlers(cfg.Store)
+	wrappers := NewWrappersHandlers(cfg.Store, cfg.Hub)
 	pair := NewPairHandlers(cfg.Store)
 	sessions := NewSessionsHandlers(cfg.Store, cfg.Hub)
 	messages := NewMessagesHandlers(cfg.Store)

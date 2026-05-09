@@ -51,6 +51,16 @@ func TestOpenOnUnknownWrapperReturnsOffline(t *testing.T) {
 	require.ErrorIs(t, err, ErrWrapperOffline)
 }
 
+func TestWrapperOnlineReflectsRegistration(t *testing.T) {
+	h := New()
+	require.False(t, h.WrapperOnline("w1"))
+	conn := &fakeWrapperConn{}
+	h.RegisterWrapper("w1", conn)
+	require.True(t, h.WrapperOnline("w1"))
+	h.UnregisterWrapper("w1")
+	require.False(t, h.WrapperOnline("w1"))
+}
+
 func TestRingCacheReplay(t *testing.T) {
 	h := New()
 	h.UpdateRing("s1", []byte("hello"))

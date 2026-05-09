@@ -30,8 +30,20 @@ export function Sidebar() {
       )}
       {(wrappers.data ?? []).map((w: WrapperJSON) => (
         <section key={w.id} className="space-y-1">
-          <header className="flex items-center justify-between">
-            <span className="font-medium">{w.name}</span>
+          <header className="flex items-center justify-between gap-2">
+            <span className="flex min-w-0 items-center gap-2">
+              <span
+                className={
+                  w.online
+                    ? 'inline-block h-2 w-2 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_0_2px_rgba(16,185,129,0.18)]'
+                    : 'inline-block h-2 w-2 shrink-0 rounded-full bg-red-500/80'
+                }
+                role="status"
+                aria-label={w.online ? 'wrapper online' : 'wrapper offline'}
+                title={w.online ? 'Conectado' : 'Desconectado'}
+              />
+              <span className="truncate font-medium">{w.name}</span>
+            </span>
             <span className="text-xs text-muted-foreground">{w.os}/{w.arch}</span>
           </header>
           <ul className="space-y-0.5 pl-2">

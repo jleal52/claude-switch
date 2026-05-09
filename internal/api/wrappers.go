@@ -4,12 +4,27 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/jleal52/claude-switch/internal/hub"
 	"github.com/jleal52/claude-switch/internal/store"
 )
 
-type WrappersHandlers struct{ store *store.Store }
+// WrapperPresence reports whether a wrapper currently has a live WebSocket
+// connection. The hub satisfies this; tests substitute a fake.
+type WrapperPresence interface {
+	WrapperOnline(id string) bool
+}
 
-func NewWrappersHandlers(s *store.Store) *WrappersHandlers { return &WrappersHandlers{store: s} }
+type WrappersHandlers struct {
+	store    *store.Store
+	presence WrapperPresence
+}
+
+func NewWrappersHandlers(s *store.Store, p WrapperPresence) *WrappersHandlers {
+	return &WrappersHandlers{store: s, presence: p}
+}
+
+// compile-time check that *hub.Hub satisfies WrapperPresence.
+var _ WrapperPresence = (*hub.Hub)(nil)
 
 type wrapperJSON struct {
 	ID         string `json:"id"`
@@ -20,6 +35,7 @@ type wrapperJSON struct {
 	PairedAt   string `json:"paired_at"`
 	LastSeenAt string `json:"last_seen_at"`
 	Revoked    bool   `json:"revoked"`
+	Online     bool   `json:"online"`
 }
 
 func (h *WrappersHandlers) List(w http.ResponseWriter, r *http.Request) {
@@ -36,6 +52,7 @@ func (h *WrappersHandlers) List(w http.ResponseWriter, r *http.Request) {
 			PairedAt:   row.PairedAt.Format("2006-01-02T15:04:05Z07:00"),
 			LastSeenAt: row.LastSeenAt.Format("2006-01-02T15:04:05Z07:00"),
 			Revoked:    row.RevokedAt != nil,
+			Online:     h.presence != nil && row.RevokedAt == nil && h.presence.WrapperOnline(row.ID),
 		}
 		out = append(out, j)
 	}

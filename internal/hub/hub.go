@@ -237,3 +237,12 @@ func (h *Hub) AssignSession(sessionID, wrapperID string) {
 	defer h.mu.Unlock()
 	h.sessionWrap[sessionID] = wrapperID
 }
+
+// WrapperOnline reports whether a wrapper currently holds a live WebSocket
+// connection to the hub.
+func (h *Hub) WrapperOnline(id string) bool {
+	h.mu.RLock()
+	_, ok := h.wrappers[id]
+	h.mu.RUnlock()
+	return ok
+}
