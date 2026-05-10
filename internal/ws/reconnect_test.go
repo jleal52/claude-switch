@@ -5,6 +5,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -59,6 +60,41 @@ func TestRunOnceExitsWhenNoPingArrives(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	err := cli.runOnce(ctx)
+	err := cli.runOnce(ctx, nil)
 	require.Error(t, err) // a timeout, not a clean exit
+}
+
+func TestRunOnceFiresOnConnectedAfterHello(t *testing.T) {
+	helloCh := make(chan struct{}, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, _ := websocket.Accept(w, r, nil)
+		defer c.CloseNow()
+		_, _, _ = c.Read(r.Context()) // consume hello
+		helloCh <- struct{}{}
+		<-r.Context().Done()
+	}))
+	defer srv.Close()
+
+	events := make(chan session.Event, 4)
+	sup := session.NewSupervisor(session.Config{ClaudeBin: "/bin/true"}, events)
+	cli := NewClient(Config{
+		URL:         "ws" + srv.URL[len("http"):],
+		Token:       "t",
+		WrapperID:   "w",
+		Version:     "test",
+		ReadTimeout: 100 * time.Millisecond,
+	}, sup, events)
+
+	var fired atomic.Bool
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	_ = cli.runOnce(ctx, func() { fired.Store(true) })
+
+	select {
+	case <-helloCh:
+	case <-time.After(time.Second):
+		t.Fatal("server never read hello")
+	}
+	require.True(t, fired.Load(), "expected onConnected callback after hello succeeded")
 }

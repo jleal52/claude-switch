@@ -35,7 +35,7 @@ func (b *Backoff) Reset() { b.attempts = 0 }
 func (c *Client) Run(ctx context.Context) error {
 	bo := NewBackoff(time.Second, 60*time.Second)
 	for {
-		err := c.runOnce(ctx)
+		err := c.runOnce(ctx, bo.Reset)
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}

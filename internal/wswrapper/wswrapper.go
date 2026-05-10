@@ -18,13 +18,29 @@ import (
 	"github.com/jleal52/claude-switch/internal/store"
 )
 
+// pingWriteTimeout caps how long a single ping write can block before we give
+// up and let the read loop notice the dead connection.
+const pingWriteTimeout = 5 * time.Second
+
+// DefaultWrapperPingInterval is how often the server sends an application-level
+// ping to each connected wrapper. The wrapper's read loop applies a 45s
+// deadline (see internal/ws.Config.ReadTimeout); this interval must stay well
+// under that deadline so an idle wrapper never times out.
+const DefaultWrapperPingInterval = 20 * time.Second
+
 type Handler struct {
-	store *store.Store
-	hub   *hub.Hub
+	store        *store.Store
+	hub          *hub.Hub
+	pingInterval time.Duration
 }
 
 func NewHandler(s *store.Store, h *hub.Hub) http.Handler {
-	return &Handler{store: s, hub: h}
+	return &Handler{store: s, hub: h, pingInterval: DefaultWrapperPingInterval}
+}
+
+// newHandlerWithPingInterval is for tests that need a faster ping cadence.
+func newHandlerWithPingInterval(s *store.Store, h *hub.Hub, interval time.Duration) *Handler {
+	return &Handler{store: s, hub: h, pingInterval: interval}
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -54,6 +70,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	ctx := r.Context()
+	if h.pingInterval > 0 {
+		pingCtx, cancelPing := context.WithCancel(ctx)
+		defer cancelPing()
+		go h.pingLoop(pingCtx, c)
+	}
+
 	for {
 		typ, data, err := c.Read(ctx)
 		if err != nil {
@@ -102,6 +124,32 @@ func (h *Handler) handleText(ctx context.Context, wrapperID, userID string, data
 		h.hub.FanoutControl(sessionID, "jsonl.tail", jt)
 	case proto.TypePong:
 		// liveness only.
+	}
+}
+
+// pingLoop emits an application-level ping frame on the cadence configured
+// for the handler. This keeps the wrapper's per-read deadline (45s) from
+// firing on idle connections; the wrapper responds with TypePong, which is
+// dropped by handleText after updating liveness implicitly via the read.
+func (h *Handler) pingLoop(ctx context.Context, c *websocket.Conn) {
+	t := time.NewTicker(h.pingInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			raw, err := proto.Encode(proto.TypePing, "", proto.Ping{Nonce: ulid.Make().String()})
+			if err != nil {
+				return
+			}
+			wctx, cancel := context.WithTimeout(ctx, pingWriteTimeout)
+			err = c.Write(wctx, websocket.MessageText, raw)
+			cancel()
+			if err != nil {
+				return
+			}
+		}
 	}
 }
 

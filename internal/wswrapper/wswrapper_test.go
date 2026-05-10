@@ -47,6 +47,51 @@ func TestWrapperHelloRegistersAndReconciles(t *testing.T) {
 	require.True(t, got[0].LastSeenAt.After(wRow.LastSeenAt))
 }
 
+func TestServerPingsWrapperPeriodically(t *testing.T) {
+	s := store.NewTestStore(t, "wsw_ping")
+	ctx := context.Background()
+	u, _ := s.Users().UpsertOAuth(ctx, store.OAuthProfile{Provider: "github", Subject: "u1"})
+	wRow, _, _ := s.Wrappers().Create(ctx, store.WrapperCreate{UserID: u.ID, Name: "x", OS: "linux", Arch: "amd64"})
+	access, _, _ := s.WrapperTokens().Issue(ctx, wRow.ID, u.ID, time.Hour)
+
+	h := hub.New()
+	srv := httptest.NewServer(newHandlerWithPingInterval(s, h, 50*time.Millisecond))
+	defer srv.Close()
+	wsURL := "ws" + srv.URL[len("http"):]
+
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer "+access)
+	conn, _, err := websocket.Dial(context.Background(), wsURL, &websocket.DialOptions{HTTPHeader: headers})
+	require.NoError(t, err)
+	defer conn.CloseNow()
+
+	hello := proto.Hello{
+		WrapperID: "x", OS: "linux", Arch: "amd64", Version: "0.1.0",
+		Accounts: []string{"default"}, Capabilities: []string{"pty"},
+	}
+	raw, _ := proto.Encode(proto.TypeHello, "", hello)
+	require.NoError(t, conn.Write(context.Background(), websocket.MessageText, raw))
+
+	// Expect at least one TypePing JSON frame within 1s. Then a second one
+	// shortly after to prove the ticker keeps going.
+	readCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	pings := 0
+	for pings < 2 {
+		typ, data, err := conn.Read(readCtx)
+		require.NoError(t, err, "expected at least 2 pings within 1s, got %d", pings)
+		if typ != websocket.MessageText {
+			continue
+		}
+		t2, _, _, err := proto.Decode(data)
+		require.NoError(t, err)
+		if t2 == proto.TypePing {
+			pings++
+		}
+	}
+}
+
 func TestWrapperRejectsBadToken(t *testing.T) {
 	s := store.NewTestStore(t, "wsw_bad")
 	h := hub.New()

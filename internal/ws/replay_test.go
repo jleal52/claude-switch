@@ -57,6 +57,6 @@ func TestReplaySendsRingContentsAfterHello(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	_ = cli.runOnce(ctx)
+	_ = cli.runOnce(ctx, nil)
 	require.True(t, gotReplay.Load(), "server did not receive replay frame")
 }

@@ -38,7 +38,11 @@ func NewClient(cfg Config, sup *session.Supervisor, events <-chan session.Event)
 
 // runOnce dials the server, sends hello, and pumps frames both ways until
 // the connection drops or ctx is cancelled. Task 14 wraps this in reconnect.
-func (c *Client) runOnce(ctx context.Context) error {
+// onConnected, if non-nil, is invoked once the hello frame has been written
+// to the server (the connection is "established"); used by Run to reset the
+// reconnect backoff so a single subsequent disconnect doesn't get penalised
+// by the previous failure streak.
+func (c *Client) runOnce(ctx context.Context, onConnected func()) error {
 	headers := http.Header{}
 	headers.Set("Authorization", "Bearer "+c.cfg.Token)
 	conn, _, err := websocket.Dial(ctx, c.cfg.URL, &websocket.DialOptions{HTTPHeader: headers})
@@ -51,6 +55,9 @@ func (c *Client) runOnce(ctx context.Context) error {
 	// Send hello first.
 	if err := c.sendHello(ctx, conn); err != nil {
 		return err
+	}
+	if onConnected != nil {
+		onConnected()
 	}
 
 	// Ring-buffer replay: re-send what each alive session has buffered so the

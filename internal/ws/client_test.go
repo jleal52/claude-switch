@@ -48,7 +48,7 @@ func TestClientSendsHelloOnConnect(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	go func() { _ = cli.runOnce(ctx) }()
+	go func() { _ = cli.runOnce(ctx, nil) }()
 
 	select {
 	case h := <-helloCh:
