@@ -153,9 +153,27 @@ sudo install -m 0755 claude-switch /usr/local/bin/claude-switch
 claude-switch --help
 ```
 
-### Windows (PowerShell)
+### Windows — Scoop (recommended)
 
-Only `windows_amd64` is published.
+[Scoop](https://scoop.sh/) is the dev-friendly Windows package manager that mirrors what Homebrew does on macOS — same `install` / `update` UX, no admin prompts, manifest auto-updated by goreleaser on every tagged release.
+
+```powershell
+scoop bucket add jleal52 https://github.com/jleal52/scoop-bucket
+scoop install claude-switch
+```
+
+Day-to-day:
+
+```powershell
+scoop update claude-switch        # pull the latest tagged release
+scoop uninstall claude-switch
+```
+
+> The bucket is rendered by goreleaser on every tagged release and pushed to [`github.com/jleal52/scoop-bucket`](https://github.com/jleal52/scoop-bucket). Available since `v0.3.4`.
+
+The wrapper relies on Windows ConPTY (built into Windows 10 1809+ and Windows 11). Only `windows_amd64` is published.
+
+### Windows — manual zip (fallback)
 
 ```powershell
 $Version = (Invoke-RestMethod 'https://api.github.com/repos/jleal52/claude-switch/releases/latest').tag_name -replace '^v',''
@@ -180,8 +198,6 @@ Expand-Archive -Force "$Dest\claude-switch.zip" -DestinationPath $Dest
 
 claude-switch --help
 ```
-
-The wrapper relies on Windows ConPTY (built into Windows 10 1809+ and Windows 11).
 
 ### Build from source (any platform)
 

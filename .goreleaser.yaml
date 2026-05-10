@@ -124,6 +124,42 @@ brews:
       output = shell_output("#{bin}/claude-switch pair 2>&1", 2)
       assert_match "pair requires a server base URL", output
 
+# Scoop bucket for Windows.
+#
+# Mirror of the Homebrew tap pattern. Goreleaser writes a manifest
+# (`bucket/claude-switch.json`) to github.com/jleal52/scoop-bucket on
+# every tagged release, so users install with:
+#
+#     scoop bucket add jleal52 https://github.com/jleal52/scoop-bucket
+#     scoop install claude-switch
+#
+# Prerequisites (one-time, same shape as the brew tap setup):
+#   1. Create an empty public repo: github.com/jleal52/scoop-bucket
+#   2. Generate a fine-grained PAT with `Contents: write` scoped to
+#      that repo only.
+#   3. Add it as the secret SCOOP_BUCKET_TOKEN in
+#      github.com/jleal52/claude-switch (Settings → Secrets → Actions).
+#
+# Without the secret the next `release.yml` run will fail at the scoop
+# step.
+scoops:
+  - name: claude-switch
+    ids: [claude-switch]
+    repository:
+      owner: jleal52
+      name: scoop-bucket
+      branch: main
+      token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
+    directory: bucket
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "chore(scoop): bump claude-switch to {{ .Tag }}"
+    homepage: "https://github.com/jleal52/claude-switch"
+    description: "Wrapper that drives multiple Claude CLI sessions remotely over WebSocket."
+    license: Proprietary
+    skip_upload: auto    # skip for prereleases / snapshots
+
 release:
   github:
     owner: jleal52
