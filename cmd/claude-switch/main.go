@@ -107,11 +107,23 @@ func run() int {
 		cfg.ServerURL = creds.ServerEndpoint
 	}
 
-	// Refresh access token if it's near expiry (5 min margin) or expired.
-	if time.Now().Add(5 * time.Minute).After(creds.ExpiresAt) {
-		serverBase := httpBaseFromWs(creds.ServerEndpoint)
-		refreshed, err := auth.Refresh(context.Background(), serverBase, creds.RefreshToken, nil)
-		if err != nil {
+	// Refresher keeps the access token current for the lifetime of the
+	// process: refreshes when within 10 min of expiry and exposes a Token()
+	// callback that the ws client consults on every reconnect.
+	serverBase := httpBaseFromWs(creds.ServerEndpoint)
+	refresher := auth.NewRefresher(auth.RefresherConfig{
+		ServerBase: serverBase,
+		Margin:     10 * time.Minute,
+		Interval:   time.Minute,
+		OnSave: func(c *auth.Credentials) error {
+			return auth.Save(credsPath, c)
+		},
+	})
+	refresher.Set(creds)
+	// Force a refresh upfront if we're already within the margin, so the
+	// initial WS dial uses a fresh token. ErrRevoked → unrecoverable.
+	if time.Now().Add(10 * time.Minute).After(creds.ExpiresAt) {
+		if err := refresher.RefreshNow(context.Background()); err != nil {
 			if errors.Is(err, auth.ErrRevoked) {
 				_ = os.Remove(credsPath)
 				fmt.Fprintln(os.Stderr, "credentials revoked — run: claude-switch pair <server-base-url>")
@@ -120,13 +132,8 @@ func run() int {
 			slog.Error("token refresh", "err", err)
 			return 1
 		}
-		refreshed.ServerEndpoint = creds.ServerEndpoint
-		if err := auth.Save(credsPath, refreshed); err != nil {
-			slog.Error("save refreshed creds", "err", err)
-			return 1
-		}
-		creds = refreshed
 	}
+	creds = refresher.Snapshot()
 
 	// Locate claude binary.
 	bin := *claudeBin
@@ -163,14 +170,15 @@ func run() int {
 	wid := fmt.Sprintf("%s-%x", filepath.Base(host), os.Getpid()&0xffff)
 
 	cli := ws.NewClient(ws.Config{
-		URL:       cfg.ServerURL,
-		Token:     creds.AccessToken,
-		WrapperID: wid,
-		Version:   wrapperVersion,
+		URL:         cfg.ServerURL,
+		TokenSource: refresher.Token,
+		WrapperID:   wid,
+		Version:     wrapperVersion,
 	}, sup, events)
 
 	ctx := signalCtx()
 	go sup.Run(ctx)
+	go func() { _ = refresher.Run(ctx) }()
 	if err := cli.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		slog.Error("ws run", "err", err)
 		return 1

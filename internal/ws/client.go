@@ -19,8 +19,14 @@ import (
 )
 
 type Config struct {
-	URL         string
-	Token       string
+	URL string
+	// Token is the bearer used when TokenSource is nil. Captured at process
+	// start, so it goes stale after the access token's TTL elapses.
+	Token string
+	// TokenSource, if non-nil, is consulted on every dial. The wrapper supplies
+	// one that reads from a credentials holder kept current by a background
+	// refresher, so reconnects after a token rotation use the fresh token.
+	TokenSource func() string
 	WrapperID   string
 	Version     string
 	ReadTimeout time.Duration // per-read timeout; default 45s
@@ -43,8 +49,12 @@ func NewClient(cfg Config, sup *session.Supervisor, events <-chan session.Event)
 // reconnect backoff so a single subsequent disconnect doesn't get penalised
 // by the previous failure streak.
 func (c *Client) runOnce(ctx context.Context, onConnected func()) error {
+	token := c.cfg.Token
+	if c.cfg.TokenSource != nil {
+		token = c.cfg.TokenSource()
+	}
 	headers := http.Header{}
-	headers.Set("Authorization", "Bearer "+c.cfg.Token)
+	headers.Set("Authorization", "Bearer "+token)
 	conn, _, err := websocket.Dial(ctx, c.cfg.URL, &websocket.DialOptions{HTTPHeader: headers})
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)
