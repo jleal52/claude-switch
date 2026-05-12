@@ -115,6 +115,84 @@ func TestSessionsListReturnsOnlyOwn(t *testing.T) {
 	require.Equal(t, "s1", got[0].ID)
 }
 
+func TestSessionsResumeStartsClaudeWithResumeFlag(t *testing.T) {
+	s := newTestStore(t, "sess_resume_ok")
+	ctx := context.Background()
+	u, _ := s.Users().UpsertOAuth(ctx, fakeProfile("u-resume"))
+	w, _, _ := s.Wrappers().Create(ctx, store.WrapperCreate{UserID: u.ID, Name: "w", OS: "linux", Arch: "amd64"})
+	seedTranscripts(t, s, u.ID, w.ID, []string{"abc-uuid"})
+
+	sess, _ := s.AuthSessions().Create(ctx, u.ID, time.Hour)
+	d := &fakeDispatcher{}
+	h := NewSessionsHandlers(s, d)
+
+	body, _ := json.Marshal(map[string]any{"jsonl_uuid": "abc-uuid"})
+	req := httptest.NewRequest("POST", "/api/sessions/resume", bytes.NewReader(body))
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: sess.ID})
+	req.AddCookie(&http.Cookie{Name: csrf.CookieName, Value: sess.CSRFToken})
+	req.Header.Set(csrf.HeaderName, sess.CSRFToken)
+	rr := httptest.NewRecorder()
+	NewAuthMiddleware(s).Require(http.HandlerFunc(h.Resume)).ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	var got struct{ ID string `json:"id"` }
+	_ = json.Unmarshal(rr.Body.Bytes(), &got)
+	require.NotEmpty(t, got.ID)
+	require.Len(t, d.opens, 1)
+	require.Equal(t, w.ID, d.opens[0].WrapperID)
+	require.Equal(t, "/x", d.opens[0].Cwd)
+	require.Equal(t, []string{"--resume", "abc-uuid"}, d.opens[0].Args)
+}
+
+func TestSessionsResumeForeignTranscriptReturns404(t *testing.T) {
+	s := newTestStore(t, "sess_resume_foreign")
+	ctx := context.Background()
+	u, _ := s.Users().UpsertOAuth(ctx, fakeProfile("u-mine"))
+	other, _ := s.Users().UpsertOAuth(ctx, fakeProfile("u-other"))
+	wo, _, _ := s.Wrappers().Create(ctx, store.WrapperCreate{UserID: other.ID, Name: "w", OS: "linux", Arch: "amd64"})
+	seedTranscripts(t, s, other.ID, wo.ID, []string{"foreign-uuid"})
+
+	sess, _ := s.AuthSessions().Create(ctx, u.ID, time.Hour)
+	d := &fakeDispatcher{}
+	h := NewSessionsHandlers(s, d)
+
+	body, _ := json.Marshal(map[string]any{"jsonl_uuid": "foreign-uuid"})
+	req := httptest.NewRequest("POST", "/api/sessions/resume", bytes.NewReader(body))
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: sess.ID})
+	req.AddCookie(&http.Cookie{Name: csrf.CookieName, Value: sess.CSRFToken})
+	req.Header.Set(csrf.HeaderName, sess.CSRFToken)
+	rr := httptest.NewRecorder()
+	NewAuthMiddleware(s).Require(http.HandlerFunc(h.Resume)).ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusNotFound, rr.Code)
+	require.Empty(t, d.opens)
+}
+
+func TestSessionsResumeSoftDeletedReturns404(t *testing.T) {
+	s := newTestStore(t, "sess_resume_deleted")
+	ctx := context.Background()
+	u, _ := s.Users().UpsertOAuth(ctx, fakeProfile("u-deleted"))
+	w, _, _ := s.Wrappers().Create(ctx, store.WrapperCreate{UserID: u.ID, Name: "w", OS: "linux", Arch: "amd64"})
+	seedTranscripts(t, s, u.ID, w.ID, []string{"gone-uuid"})
+	mine, _ := s.Transcripts().ListByWrapper(ctx, w.ID, 10)
+	require.NoError(t, s.Transcripts().SoftDelete(ctx, mine[0].ID))
+
+	sess, _ := s.AuthSessions().Create(ctx, u.ID, time.Hour)
+	d := &fakeDispatcher{}
+	h := NewSessionsHandlers(s, d)
+
+	body, _ := json.Marshal(map[string]any{"jsonl_uuid": "gone-uuid"})
+	req := httptest.NewRequest("POST", "/api/sessions/resume", bytes.NewReader(body))
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: sess.ID})
+	req.AddCookie(&http.Cookie{Name: csrf.CookieName, Value: sess.CSRFToken})
+	req.Header.Set(csrf.HeaderName, sess.CSRFToken)
+	rr := httptest.NewRecorder()
+	NewAuthMiddleware(s).Require(http.HandlerFunc(h.Resume)).ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusNotFound, rr.Code)
+	require.Empty(t, d.opens)
+}
+
 func TestSessionsDeleteOwnDispatches(t *testing.T) {
 	s := newTestStore(t, "sess_del")
 	ctx := context.Background()

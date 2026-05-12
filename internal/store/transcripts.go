@@ -299,6 +299,34 @@ func (r *TranscriptsRepo) LiveUUIDsForUser(ctx context.Context, userID string, j
 	return out, nil
 }
 
+// GetByJSONLUUIDForUser returns the (non-soft-deleted) transcript whose
+// jsonl_uuid matches and that belongs to the given user. Used by the
+// resume endpoint: a portal-visible search match carries the jsonl_uuid
+// only, and the server still has to prove the user owns it before
+// spawning `claude --resume=<uuid>` against the right wrapper.
+func (r *TranscriptsRepo) GetByJSONLUUIDForUser(ctx context.Context, userID, jsonlUUID string) (*Transcript, error) {
+	userOID, err := bson.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, err
+	}
+	filter := bson.M{
+		"user_id":    userOID,
+		"jsonl_uuid": jsonlUUID,
+		"$or": []bson.M{
+			{"deleted_at": bson.M{"$exists": false}},
+			{"deleted_at": nil},
+		},
+	}
+	var d transcriptDoc
+	if err := r.coll.FindOne(ctx, filter).Decode(&d); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return d.toTranscript(), nil
+}
+
 // GetByID looks up a transcript by its hex ObjectID.
 func (r *TranscriptsRepo) GetByID(ctx context.Context, id string) (*Transcript, error) {
 	oid, err := bson.ObjectIDFromHex(id)

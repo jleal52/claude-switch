@@ -144,6 +144,22 @@ func (r *ProjectsRepo) ListByWrapper(ctx context.Context, wrapperID string) ([]*
 	return r.list(ctx, bson.M{"wrapper_id": wrapperOID})
 }
 
+// GetByID looks up a project by its hex ObjectID.
+func (r *ProjectsRepo) GetByID(ctx context.Context, id string) (*Project, error) {
+	oid, err := bson.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, err
+	}
+	var d projectDoc
+	if err := r.coll.FindOne(ctx, bson.M{"_id": oid}).Decode(&d); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return d.toProject(), nil
+}
+
 func (r *ProjectsRepo) list(ctx context.Context, filter bson.M) ([]*Project, error) {
 	opts := options.Find().SetSort(bson.D{{Key: "last_activity_at", Value: -1}})
 	cur, err := r.coll.Find(ctx, filter, opts)

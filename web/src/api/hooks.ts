@@ -87,6 +87,20 @@ export function useCreateSession() {
   });
 }
 
+// useResumeTranscript spawns `claude --resume <jsonl_uuid>` on the
+// wrapper that owns the transcript. The server resolves wrapper + cwd
+// from the catalog so the portal only has to send the uuid.
+export function useResumeTranscript() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (jsonl_uuid: string) =>
+      apiClient<SessionJSON>('/api/sessions/resume', { method: 'POST', body: { jsonl_uuid } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sessions'] });
+    },
+  });
+}
+
 export interface PairRedeemInput { code: string; deny?: boolean }
 export interface PairRedeemResult { name: string; os: string; arch: string; version: string }
 

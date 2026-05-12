@@ -59,6 +59,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	mux.Handle("POST /api/pair/redeem", mw.Require(http.HandlerFunc(pair.Redeem)))
 	mux.Handle("GET /api/sessions", mw.Require(http.HandlerFunc(sessions.List)))
 	mux.Handle("POST /api/sessions", mw.Require(http.HandlerFunc(sessions.Create)))
+	mux.Handle("POST /api/sessions/resume", mw.Require(http.HandlerFunc(sessions.Resume)))
 	mux.Handle("DELETE /api/sessions/{id}", mw.Require(http.HandlerFunc(sessions.Delete)))
 	mux.Handle("GET /api/sessions/{id}/messages", mw.Require(http.HandlerFunc(messages.List)))
 	mux.Handle("GET /api/projects", mw.Require(http.HandlerFunc(projects.List)))

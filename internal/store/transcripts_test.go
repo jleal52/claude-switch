@@ -239,3 +239,38 @@ func TestTranscriptsGetByID(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "u1", got.JSONLUUID)
 }
+
+func TestTranscriptsGetByJSONLUUIDForUser(t *testing.T) {
+	s := NewTestStore(t, "tr_get_uuid_user")
+	ctx := context.Background()
+	u := mustUser(t, s)
+	other := mustUser(t, s)
+	wMine := mustWrapper(t, s, u, "mine")
+	wOther := mustWrapper(t, s, other, "other")
+	t0 := time.Now().UTC()
+
+	require.NoError(t, s.Transcripts().ReplaceForWrapper(ctx, u, wMine,
+		[]ProjectUpsert{sampleProject("-x", "/Users/me/x")},
+		[]TranscriptUpsert{sampleTranscript("mine-uuid", "-x", t0)},
+	))
+	require.NoError(t, s.Transcripts().ReplaceForWrapper(ctx, other, wOther,
+		[]ProjectUpsert{sampleProject("-y", "/Users/them/y")},
+		[]TranscriptUpsert{sampleTranscript("other-uuid", "-y", t0)},
+	))
+
+	// Mine: found.
+	got, err := s.Transcripts().GetByJSONLUUIDForUser(ctx, u, "mine-uuid")
+	require.NoError(t, err)
+	require.Equal(t, "mine-uuid", got.JSONLUUID)
+	require.Equal(t, wMine, got.WrapperID)
+
+	// Foreign user's transcript: ErrNotFound, never leaks.
+	_, err = s.Transcripts().GetByJSONLUUIDForUser(ctx, u, "other-uuid")
+	require.ErrorIs(t, err, ErrNotFound)
+
+	// After soft-delete: hidden.
+	mine, _ := s.Transcripts().ListByWrapper(ctx, wMine, 10)
+	require.NoError(t, s.Transcripts().SoftDelete(ctx, mine[0].ID))
+	_, err = s.Transcripts().GetByJSONLUUIDForUser(ctx, u, "mine-uuid")
+	require.ErrorIs(t, err, ErrNotFound)
+}

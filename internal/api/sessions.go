@@ -113,6 +113,63 @@ func (h *SessionsHandlers) Create(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Resume spawns `claude --resume <jsonl_uuid>` on the wrapper that owns
+// the given transcript. The portal sends only `jsonl_uuid` because that
+// is the only stable identifier carried by a SearchMatch; the server
+// resolves wrapper + cwd from the catalog, which also enforces
+// ownership and hides soft-deleted transcripts.
+func (h *SessionsHandlers) Resume(w http.ResponseWriter, r *http.Request) {
+	u := MustUser(r.Context())
+	var in struct {
+		JSONLUUID string `json:"jsonl_uuid"`
+		Account   string `json:"account,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		http.Error(w, "bad json", http.StatusBadRequest)
+		return
+	}
+	if in.JSONLUUID == "" {
+		http.Error(w, "jsonl_uuid required", http.StatusBadRequest)
+		return
+	}
+	if in.Account == "" {
+		in.Account = "default"
+	}
+
+	tr, err := h.store.Transcripts().GetByJSONLUUIDForUser(r.Context(), u.ID, in.JSONLUUID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	proj, err := h.store.Projects().GetByID(r.Context(), tr.ProjectID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	sid := ulid.Make().String()
+	row, err := h.store.Sessions().Create(r.Context(), store.SessionCreate{
+		ID: sid, UserID: u.ID, WrapperID: tr.WrapperID, Cwd: proj.Cwd, Account: in.Account,
+	})
+	if err != nil {
+		http.Error(w, "store", http.StatusInternalServerError)
+		return
+	}
+	args := []string{"--resume", in.JSONLUUID}
+	if err := h.dispatcher.OpenSession(r.Context(), hub.OpenSessionRequest{
+		WrapperID: tr.WrapperID, SessionID: sid,
+		Cwd: proj.Cwd, Account: in.Account, Args: args,
+	}); err != nil {
+		_ = h.store.Sessions().MarkExited(r.Context(), sid, -1, "spawn_failed", err.Error())
+		http.Error(w, "dispatcher: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	writeJSON(w, http.StatusOK, sessionJSON{
+		ID: row.ID, WrapperID: row.WrapperID, Cwd: row.Cwd, Account: row.Account,
+		Status: row.Status, CreatedAt: row.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+	})
+}
+
 func (h *SessionsHandlers) Delete(w http.ResponseWriter, r *http.Request) {
 	u := MustUser(r.Context())
 	id := r.PathValue("id")

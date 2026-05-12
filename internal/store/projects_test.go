@@ -118,6 +118,27 @@ func TestProjectsDeleteForWrapperExcept(t *testing.T) {
 	require.ElementsMatch(t, []string{"-a", "-c"}, slugs)
 }
 
+func TestProjectsGetByIDReturnsProject(t *testing.T) {
+	s := NewTestStore(t, "proj_get_by_id")
+	u := mustUser(t, s)
+	w := mustWrapper(t, s, u, "w1")
+
+	ids, err := s.Projects().UpsertMany(context.Background(), u, w, []ProjectUpsert{
+		sampleProject("-x", "/Users/me/x"),
+	})
+	require.NoError(t, err)
+	pid := ids["-x"]
+
+	got, err := s.Projects().GetByID(context.Background(), pid)
+	require.NoError(t, err)
+	require.Equal(t, "/Users/me/x", got.Cwd)
+	require.Equal(t, "-x", got.Slug)
+	require.Equal(t, w, got.WrapperID)
+
+	_, err = s.Projects().GetByID(context.Background(), "000000000000000000000000")
+	require.ErrorIs(t, err, ErrNotFound)
+}
+
 func TestProjectsListByUserScopesToOwner(t *testing.T) {
 	s := NewTestStore(t, "proj_scope")
 	u1, u2 := mustUser(t, s), mustUser(t, s)

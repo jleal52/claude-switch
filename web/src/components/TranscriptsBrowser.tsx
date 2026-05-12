@@ -1,10 +1,13 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import {
   useProjects,
   useTranscripts,
   useWrappers,
   useSearch,
   useDeleteTranscript,
+  useCreateSession,
+  useResumeTranscript,
   type ProjectJSON,
   type TranscriptJSON,
   type WrapperJSON,
@@ -33,6 +36,36 @@ export function TranscriptsBrowser() {
   });
 
   const search = useSearch();
+  const nav = useNavigate();
+  const createSession = useCreateSession();
+  const resume = useResumeTranscript();
+
+  const selectedProject = useMemo(
+    () => (projects.data ?? []).find((p) => p.id === selectedProjectID),
+    [projects.data, selectedProjectID],
+  );
+
+  const startNewInProject = async () => {
+    if (!selectedProject) return;
+    try {
+      const sess = await createSession.mutateAsync({
+        wrapper_id: selectedProject.wrapper_id,
+        cwd: selectedProject.cwd,
+      });
+      nav({ to: '/sessions/$id', params: { id: sess.id } });
+    } catch (e) {
+      alert('No se pudo crear la conversación: ' + String(e));
+    }
+  };
+
+  const resumeByUUID = async (jsonl_uuid: string) => {
+    try {
+      const sess = await resume.mutateAsync(jsonl_uuid);
+      nav({ to: '/sessions/$id', params: { id: sess.id } });
+    } catch (e) {
+      alert('No se pudo reanudar la conversación: ' + String(e));
+    }
+  };
 
   const wrapperByID = useMemo(() => {
     const m = new Map<string, WrapperJSON>();
@@ -128,6 +161,23 @@ export function TranscriptsBrowser() {
       </aside>
 
       <main className="flex h-full min-h-0 flex-col overflow-hidden">
+        {selectedProject && (
+          <div className="flex items-center justify-between gap-2 border-b bg-muted/30 px-3 py-2 text-sm">
+            <span className="truncate">
+              <span className="text-muted-foreground">Proyecto activo:</span>{' '}
+              <span className="font-medium">{selectedProject.name}</span>{' '}
+              <span className="text-xs text-muted-foreground">({selectedProject.cwd})</span>
+            </span>
+            <Button
+              size="sm"
+              onClick={startNewInProject}
+              disabled={createSession.isPending}
+              title={`claude en ${selectedProject.cwd}`}
+            >
+              {createSession.isPending ? 'Creando…' : '+ Nueva conversación aquí'}
+            </Button>
+          </div>
+        )}
         <form onSubmit={runSearch} className="flex gap-2 border-b p-3">
           <Input
             value={query}
@@ -153,9 +203,16 @@ export function TranscriptsBrowser() {
               data={search.data}
               wrapperByID={wrapperByID}
               onClear={() => search.reset()}
+              onResume={resumeByUUID}
+              resuming={resume.isPending}
             />
           ) : (
-            <TranscriptsList rows={transcripts.data ?? []} loading={transcripts.isLoading} />
+            <TranscriptsList
+              rows={transcripts.data ?? []}
+              loading={transcripts.isLoading}
+              onResume={resumeByUUID}
+              resuming={resume.isPending}
+            />
           )}
         </div>
       </main>
@@ -163,7 +220,17 @@ export function TranscriptsBrowser() {
   );
 }
 
-function TranscriptsList({ rows, loading }: { rows: TranscriptJSON[]; loading: boolean }) {
+function TranscriptsList({
+  rows,
+  loading,
+  onResume,
+  resuming,
+}: {
+  rows: TranscriptJSON[];
+  loading: boolean;
+  onResume: (jsonl_uuid: string) => void;
+  resuming: boolean;
+}) {
   const del = useDeleteTranscript();
   if (loading) return <div className="text-muted-foreground">Cargando…</div>;
   if (rows.length === 0) return <div className="text-muted-foreground">Sin transcripciones todavía.</div>;
@@ -180,7 +247,7 @@ function TranscriptsList({ rows, loading }: { rows: TranscriptJSON[]; loading: b
           <th className="py-2">Inicio</th>
           <th className="py-2">Mensajes</th>
           <th className="py-2">Tamaño</th>
-          <th className="py-2 w-10"></th>
+          <th className="py-2 w-20 text-right"></th>
         </tr>
       </thead>
       <tbody>
@@ -192,7 +259,16 @@ function TranscriptsList({ rows, loading }: { rows: TranscriptJSON[]; loading: b
             <td className="py-2 font-mono text-xs">{t.started_at.slice(0, 19).replace('T', ' ')}</td>
             <td className="py-2">{t.message_count}</td>
             <td className="py-2 text-muted-foreground">{formatBytes(t.bytes)}</td>
-            <td className="py-2 text-right">
+            <td className="py-2 text-right whitespace-nowrap">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onResume(t.jsonl_uuid)}
+                disabled={resuming}
+                title={`Reanudar (claude --resume ${t.jsonl_uuid})`}
+              >
+                ↻
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -214,10 +290,14 @@ function SearchResultsView({
   data,
   wrapperByID,
   onClear,
+  onResume,
+  resuming,
 }: {
   data: NonNullable<ReturnType<typeof useSearch>['data']>;
   wrapperByID: Map<string, WrapperJSON>;
   onClear: () => void;
+  onResume: (jsonl_uuid: string) => void;
+  resuming: boolean;
 }) {
   return (
     <div className="space-y-4">
@@ -259,12 +339,23 @@ function SearchResultsView({
       <ul className="space-y-2">
         {data.matches.map((m, i) => (
           <li key={`${m.transcript_id}-${m.msg_index}-${i}`} className="rounded-md border p-3 text-sm">
-            <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+            <div className="mb-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
               <span className="font-mono">{m.transcript_id.slice(0, 8)}…</span>
-              <span>
-                {m.role} · #{m.msg_index}
-                {m.ts ? ` · ${m.ts.slice(0, 19).replace('T', ' ')}` : ''}
-              </span>
+              <div className="flex items-center gap-2">
+                <span>
+                  {m.role} · #{m.msg_index}
+                  {m.ts ? ` · ${m.ts.slice(0, 19).replace('T', ' ')}` : ''}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onResume(m.transcript_id)}
+                  disabled={resuming}
+                  title={`Reanudar (claude --resume ${m.transcript_id})`}
+                >
+                  ↻ Reanudar
+                </Button>
+              </div>
             </div>
             <pre className="whitespace-pre-wrap break-words text-sm">{m.snippet}</pre>
           </li>
