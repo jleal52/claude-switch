@@ -5,6 +5,8 @@ import (
 
 	"github.com/jleal52/claude-switch/internal/hub"
 	"github.com/jleal52/claude-switch/internal/oauth"
+	"github.com/jleal52/claude-switch/internal/proto"
+	"github.com/jleal52/claude-switch/internal/searchhub"
 	"github.com/jleal52/claude-switch/internal/store"
 	"github.com/jleal52/claude-switch/internal/webfs"
 	"github.com/jleal52/claude-switch/internal/wsbrowser"
@@ -14,6 +16,7 @@ import (
 type RouterConfig struct {
 	Store          *store.Store
 	Hub            *hub.Hub
+	SearchHub      *searchhub.Hub
 	Providers      []oauth.Provider
 	BaseURL        string
 	Secure         bool
@@ -45,6 +48,8 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	pair := NewPairHandlers(cfg.Store)
 	sessions := NewSessionsHandlers(cfg.Store, cfg.Hub)
 	messages := NewMessagesHandlers(cfg.Store)
+	projects := NewProjectsHandlers(cfg.Store)
+	transcripts := NewTranscriptsHandlers(cfg.Store)
 
 	mux.Handle("GET /api/me", mw.Require(http.HandlerFunc(me.Get)))
 	mux.Handle("POST /api/me/settings", mw.Require(http.HandlerFunc(me.UpdateSettings)))
@@ -56,13 +61,32 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	mux.Handle("POST /api/sessions", mw.Require(http.HandlerFunc(sessions.Create)))
 	mux.Handle("DELETE /api/sessions/{id}", mw.Require(http.HandlerFunc(sessions.Delete)))
 	mux.Handle("GET /api/sessions/{id}/messages", mw.Require(http.HandlerFunc(messages.List)))
+	mux.Handle("GET /api/projects", mw.Require(http.HandlerFunc(projects.List)))
+	mux.Handle("GET /api/transcripts", mw.Require(http.HandlerFunc(transcripts.List)))
+	mux.Handle("GET /api/transcripts/{id}", mw.Require(http.HandlerFunc(transcripts.Get)))
+	if cfg.SearchHub != nil {
+		search := NewSearchHandlers(cfg.Store, cfg.SearchHub)
+		mux.Handle("POST /api/search", mw.Require(http.HandlerFunc(search.Search)))
+	}
 
-	mux.Handle("/ws/wrapper", wswrapper.NewHandler(cfg.Store, cfg.Hub))
+	wrapperHandler := wswrapper.NewHandler(cfg.Store, cfg.Hub)
+	if cfg.SearchHub != nil {
+		wrapperHandler.SetSearchSink(searchSinkAdapter{cfg.SearchHub})
+	}
 	mux.Handle("/ws/sessions/{id}", wsbrowser.NewHandler(cfg.Store, cfg.Hub))
 
 	mux.Handle("/", webfs.Handler())
 
 	return mux
+}
+
+// searchSinkAdapter wires wswrapper's SearchSink onto searchhub.Hub.
+// Defined in the api package to keep the wswrapper → searchhub edge
+// loose (avoid a direct import cycle).
+type searchSinkAdapter struct{ h *searchhub.Hub }
+
+func (s searchSinkAdapter) Deliver(requestID, wrapperID string, results proto.SearchResults) {
+	s.h.Deliver(requestID, wrapperID, results)
 }
 
 func providerNames(ps []oauth.Provider) []string {
