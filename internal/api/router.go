@@ -73,6 +73,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	if cfg.SearchHub != nil {
 		wrapperHandler.SetSearchSink(searchSinkAdapter{cfg.SearchHub})
 	}
+	mux.Handle("/ws/wrapper", wrapperHandler)
 	mux.Handle("/ws/sessions/{id}", wsbrowser.NewHandler(cfg.Store, cfg.Hub))
 
 	mux.Handle("/", webfs.Handler())
