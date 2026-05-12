@@ -28,19 +28,40 @@ const pingWriteTimeout = 5 * time.Second
 // under that deadline so an idle wrapper never times out.
 const DefaultWrapperPingInterval = 20 * time.Second
 
+// SearchSink receives search.results frames from connected wrappers. The
+// searchhub package implements this and routes them to waiting Dispatch
+// callers. A nil sink (zero-value) is safe; results are dropped.
+type SearchSink interface {
+	Deliver(requestID, wrapperID string, results proto.SearchResults)
+}
+
+type nopSearchSink struct{}
+
+func (nopSearchSink) Deliver(string, string, proto.SearchResults) {}
+
 type Handler struct {
 	store        *store.Store
 	hub          *hub.Hub
+	searchSink   SearchSink
 	pingInterval time.Duration
 }
 
-func NewHandler(s *store.Store, h *hub.Hub) http.Handler {
-	return &Handler{store: s, hub: h, pingInterval: DefaultWrapperPingInterval}
+func NewHandler(s *store.Store, h *hub.Hub) *Handler {
+	return &Handler{store: s, hub: h, searchSink: nopSearchSink{}, pingInterval: DefaultWrapperPingInterval}
+}
+
+// SetSearchSink wires the searchhub into the handler. Called from the
+// server bootstrap after both have been constructed.
+func (h *Handler) SetSearchSink(sink SearchSink) {
+	if sink == nil {
+		sink = nopSearchSink{}
+	}
+	h.searchSink = sink
 }
 
 // newHandlerWithPingInterval is for tests that need a faster ping cadence.
 func newHandlerWithPingInterval(s *store.Store, h *hub.Hub, interval time.Duration) *Handler {
-	return &Handler{store: s, hub: h, pingInterval: interval}
+	return &Handler{store: s, hub: h, searchSink: nopSearchSink{}, pingInterval: interval}
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -124,7 +145,89 @@ func (h *Handler) handleText(ctx context.Context, wrapperID, userID string, data
 		h.hub.FanoutControl(sessionID, "jsonl.tail", jt)
 	case proto.TypePong:
 		// liveness only.
+	case proto.TypeCatalogDiff:
+		var cd proto.CatalogDiff
+		_ = payload.Into(&cd)
+		h.applyCatalogDiff(ctx, userID, wrapperID, cd)
+	case proto.TypeSearchResults:
+		var sr proto.SearchResults
+		_ = payload.Into(&sr)
+		h.searchSink.Deliver(sessionID, wrapperID, sr)
 	}
+}
+
+// applyCatalogDiff writes the wrapper's transcripts-catalog payload to the
+// store. Full=true is the ground-truth path used after every reconnect:
+// the server replaces its slice of the catalog atomically with what the
+// wrapper sent. Full=false carries only deltas.
+func (h *Handler) applyCatalogDiff(ctx context.Context, userID, wrapperID string, cd proto.CatalogDiff) {
+	projects := make([]store.ProjectUpsert, 0, len(cd.Projects))
+	for _, p := range cd.Projects {
+		projects = append(projects, store.ProjectUpsert{
+			Slug:            p.Slug,
+			Cwd:             p.Cwd,
+			Name:            p.Name,
+			SessionCount:    p.SessionCount,
+			FirstActivityAt: parseTime(p.FirstActivityAt),
+			LastActivityAt:  parseTime(p.LastActivityAt),
+		})
+	}
+	transcripts := make([]store.TranscriptUpsert, 0, len(cd.Transcripts))
+	for _, t := range cd.Transcripts {
+		transcripts = append(transcripts, store.TranscriptUpsert{
+			JSONLUUID:    t.JSONLUUID,
+			ProjectSlug:  t.Slug,
+			Path:         t.Path,
+			StartedAt:    parseTime(t.StartedAt),
+			EndedAt:      parseTime(t.EndedAt),
+			MessageCount: t.MessageCount,
+			Title:        t.Title,
+			Bytes:        t.Bytes,
+		})
+	}
+
+	if cd.Full {
+		_ = h.store.Transcripts().ReplaceForWrapper(ctx, userID, wrapperID, projects, transcripts)
+		return
+	}
+	// Incremental: upsert projects we mention (without deleting unmentioned
+	// ones — the wrapper would only diff something that changed), upsert
+	// transcripts, then delete the ones listed as removed.
+	slugMap, err := h.store.Projects().UpsertMany(ctx, userID, wrapperID, projects)
+	if err != nil {
+		return
+	}
+	// Some incremental diffs touch only transcripts; fetch the slug→id map
+	// for any project slugs we reference but didn't upsert this round.
+	missing := map[string]bool{}
+	for _, t := range cd.Transcripts {
+		if _, ok := slugMap[t.Slug]; !ok {
+			missing[t.Slug] = true
+		}
+	}
+	if len(missing) > 0 {
+		known, err := h.store.Projects().ListByWrapper(ctx, wrapperID)
+		if err == nil {
+			for _, p := range known {
+				if missing[p.Slug] {
+					slugMap[p.Slug] = p.ID
+				}
+			}
+		}
+	}
+	_ = h.store.Transcripts().UpsertMany(ctx, userID, wrapperID, slugMap, transcripts)
+	_ = h.store.Transcripts().DeleteByUUIDs(ctx, wrapperID, cd.RemovedTranscripts)
+}
+
+func parseTime(s string) time.Time {
+	if s == "" {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339Nano, s)
+	if err != nil {
+		return time.Time{}
+	}
+	return t.UTC()
 }
 
 // pingLoop emits an application-level ping frame on the cadence configured
