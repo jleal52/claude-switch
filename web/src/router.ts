@@ -5,6 +5,7 @@ import { Route as LoginRoute } from './routes/login';
 import { Route as PairRoute } from './routes/pair';
 import { Route as SessionRoute } from './routes/sessions.$id';
 import { Route as SettingsRoute } from './routes/settings';
+import { Route as TranscriptsRoute } from './routes/transcripts';
 
 const routeTree = RootRoute.addChildren([
   IndexRoute,
@@ -12,6 +13,7 @@ const routeTree = RootRoute.addChildren([
   PairRoute,
   SessionRoute,
   SettingsRoute,
+  TranscriptsRoute,
 ]);
 
 export const router = createRouter({ routeTree });

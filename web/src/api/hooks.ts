@@ -127,3 +127,95 @@ export function useUpdateSettings() {
     },
   });
 }
+
+// === Transcripts catalog + search ===
+
+export interface ProjectJSON {
+  id: string;
+  wrapper_id: string;
+  slug: string;
+  cwd: string;
+  name: string;
+  session_count: number;
+  first_activity_at: string;
+  last_activity_at: string;
+}
+
+export interface TranscriptJSON {
+  id: string;
+  wrapper_id: string;
+  project_id: string;
+  jsonl_uuid: string;
+  path: string;
+  started_at: string;
+  ended_at: string;
+  message_count: number;
+  title: string;
+  bytes: number;
+}
+
+export function useProjects(wrapperID?: string) {
+  return useQuery({
+    queryKey: ['projects', wrapperID ?? 'all'],
+    queryFn: () =>
+      apiClient<ProjectJSON[]>(
+        '/api/projects',
+        wrapperID ? { query: { wrapper_id: wrapperID } } : {},
+      ),
+    staleTime: 30_000,
+  });
+}
+
+export interface TranscriptsListOpts {
+  wrapperID?: string;
+  projectID?: string;
+  limit?: number;
+}
+
+export function useTranscripts(opts: TranscriptsListOpts = {}) {
+  const query: Record<string, string | number> = {};
+  if (opts.wrapperID) query.wrapper_id = opts.wrapperID;
+  if (opts.projectID) query.project_id = opts.projectID;
+  if (opts.limit) query.limit = opts.limit;
+  return useQuery({
+    queryKey: ['transcripts', opts.wrapperID ?? 'any', opts.projectID ?? 'any', opts.limit ?? 200],
+    queryFn: () => apiClient<TranscriptJSON[]>('/api/transcripts', { query }),
+    staleTime: 15_000,
+  });
+}
+
+export interface SearchMatchJSON {
+  transcript_id: string; // wrapper-side jsonl_uuid (per proto)
+  msg_index: number;
+  role: string;
+  snippet: string;
+  ts?: string;
+}
+
+export interface WrapperSearchStatus {
+  Status: 'ok' | 'offline' | 'timeout' | 'error';
+  Count?: number;
+  ElapsedMs?: number;
+  Error?: string;
+}
+
+export interface SearchResponseJSON {
+  matches: SearchMatchJSON[];
+  by_wrapper: Record<string, WrapperSearchStatus>;
+}
+
+export interface SearchInput {
+  query: string;
+  project_id?: string;        // slug, wrapper-side
+  wrapper_ids?: string[];
+  transcript_ids?: string[];  // jsonl_uuids
+  max_results?: number;
+  case_insensitive?: boolean;
+}
+
+export function useSearch() {
+  return useMutation({
+    mutationFn: (input: SearchInput) =>
+      apiClient<SearchResponseJSON>('/api/search', { method: 'POST', body: input }),
+  });
+}

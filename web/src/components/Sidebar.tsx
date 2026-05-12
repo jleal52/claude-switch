@@ -79,7 +79,10 @@ export function Sidebar() {
           />
         </section>
       ))}
-      <div className="mt-auto border-t pt-2">
+      <div className="mt-auto space-y-1 border-t pt-2">
+        <Button asChild variant="outline" size="sm" className="w-full">
+          <Link to="/transcripts">Buscar transcripciones</Link>
+        </Button>
         <Button asChild variant="outline" size="sm" className="w-full">
           <Link to="/pair">Pair a wrapper</Link>
         </Button>
