@@ -84,6 +84,35 @@ func TestScannerExtractsTitleFromFirstRealUserPrompt(t *testing.T) {
 	require.Equal(t, "real prompt", cat.Snapshot().Transcripts[0].Title)
 }
 
+func TestScannerSkipsClaudeCommandEnvelopes(t *testing.T) {
+	root := t.TempDir()
+	slug := "-Users-alice-foo"
+	require.NoError(t, os.MkdirAll(filepath.Join(root, slug), 0o755))
+
+	// First user message is a slash-command envelope (no isMeta but useless
+	// as a title). Second is a real prompt.
+	writeJSONL(t, filepath.Join(root, slug, "cmd.jsonl"), []string{
+		`{"type":"user","timestamp":"2026-05-09T10:00:00.000Z","cwd":"/Users/alice/foo","message":{"role":"user","content":"<command-name>/exit</command-name> <command-message>exit</command-message> <command-args></command-args>"}}`,
+		`{"type":"user","timestamp":"2026-05-09T10:00:01.000Z","cwd":"/Users/alice/foo","message":{"role":"user","content":"real question after a slash-command"}}`,
+	})
+	cat, err := NewScanner(root).Scan(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "real question after a slash-command", cat.Snapshot().Transcripts[0].Title)
+}
+
+func TestScannerSkipsLocalCommandCaveatEnvelopes(t *testing.T) {
+	root := t.TempDir()
+	slug := "-x"
+	require.NoError(t, os.MkdirAll(filepath.Join(root, slug), 0o755))
+	writeJSONL(t, filepath.Join(root, slug, "c.jsonl"), []string{
+		`{"type":"user","timestamp":"2026-05-09T10:00:00.000Z","cwd":"/x","message":{"role":"user","content":"<local-command-caveat>noise</local-command-caveat>"}}`,
+		`{"type":"user","timestamp":"2026-05-09T10:00:01.000Z","cwd":"/x","message":{"role":"user","content":"after the caveat"}}`,
+	})
+	cat, err := NewScanner(root).Scan(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "after the caveat", cat.Snapshot().Transcripts[0].Title)
+}
+
 func TestScannerHandlesContentList(t *testing.T) {
 	root := t.TempDir()
 	slug := "-x"

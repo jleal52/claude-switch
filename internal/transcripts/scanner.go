@@ -157,9 +157,21 @@ func parseLine(line []byte, tr *Transcript, cwdOut, titleOut *string) {
 	}
 	if *titleOut == "" && ev.Type == "user" && !ev.IsMeta && ev.Message != nil {
 		if t := extractText(ev.Message.Content); t != "" {
-			*titleOut = truncate(strings.TrimSpace(t), TitleMaxChars)
+			trimmed := strings.TrimSpace(t)
+			if !isClaudeCommandText(trimmed) {
+				*titleOut = truncate(trimmed, TitleMaxChars)
+			}
 		}
 	}
+}
+
+// isClaudeCommandText reports whether a user message body is one of
+// Claude's command/caveat envelopes (e.g. `<command-name>/exit…</…>` or
+// `<local-command-caveat>…</…>`). These are mechanical and useless as
+// transcript titles, so we skip them and try the next user message.
+func isClaudeCommandText(s string) bool {
+	return strings.HasPrefix(s, "<command-") ||
+		strings.HasPrefix(s, "<local-command-")
 }
 
 // extractText returns the user-facing text of a message body that may be
