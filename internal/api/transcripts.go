@@ -97,6 +97,40 @@ func (h *TranscriptsHandlers) Get(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, transcriptsToJSON([]*store.Transcript{t})[0])
 }
 
+// Delete soft-deletes a transcript. The row stays in the DB; future
+// listings hide it and a subsequent wrapper full-snapshot does not
+// resurrect it.
+func (h *TranscriptsHandlers) Delete(w http.ResponseWriter, r *http.Request) {
+	u := MustUser(r.Context())
+	id := r.PathValue("id")
+	if id == "" {
+		http.NotFound(w, r)
+		return
+	}
+	t, err := h.store.Transcripts().GetByID(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, "store", http.StatusInternalServerError)
+		return
+	}
+	if t.UserID != u.ID {
+		http.NotFound(w, r)
+		return
+	}
+	if err := h.store.Transcripts().SoftDelete(r.Context(), id); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, "store", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func transcriptsToJSON(rows []*store.Transcript) []transcriptJSON {
 	out := make([]transcriptJSON, 0, len(rows))
 	for _, t := range rows {

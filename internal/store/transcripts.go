@@ -25,6 +25,7 @@ type transcriptDoc struct {
 	MessageCount int           `bson:"message_count"`
 	Title        string        `bson:"title"`
 	Bytes        int64         `bson:"bytes"`
+	DeletedAt    *time.Time    `bson:"deleted_at,omitempty"`
 }
 
 func (d *transcriptDoc) toTranscript() *Transcript {
@@ -40,6 +41,7 @@ func (d *transcriptDoc) toTranscript() *Transcript {
 		MessageCount: d.MessageCount,
 		Title:        d.Title,
 		Bytes:        d.Bytes,
+		DeletedAt:    d.DeletedAt,
 	}
 }
 
@@ -56,6 +58,10 @@ type Transcript struct {
 	MessageCount int
 	Title        string
 	Bytes        int64
+	// DeletedAt is non-nil when the user soft-deleted the transcript via
+	// the portal. List endpoints filter these out by default; the row
+	// stays in the DB and survives wrapper-side catalog reconciliation.
+	DeletedAt *time.Time
 }
 
 // TranscriptUpsert is the wrapper-side intent for a transcript row.
@@ -179,12 +185,53 @@ func (r *TranscriptsRepo) ReplaceForWrapper(ctx context.Context, userID, wrapper
 	if err != nil {
 		return err
 	}
-	filter := bson.M{"wrapper_id": wrapperOID}
+	// Hard-delete orphans (transcripts the wrapper no longer mentions) BUT
+	// preserve any that the user has soft-deleted via the portal — that
+	// choice has to survive even if the user later removed the JSONL from
+	// disk.
+	filter := bson.M{
+		"wrapper_id": wrapperOID,
+		"$or": []bson.M{
+			{"deleted_at": bson.M{"$exists": false}},
+			{"deleted_at": nil},
+		},
+	}
 	if len(keepUUIDs) > 0 {
 		filter["jsonl_uuid"] = bson.M{"$nin": keepUUIDs}
 	}
 	_, err = r.coll.DeleteMany(ctx, filter)
 	return err
+}
+
+// SoftDelete marks a transcript as deleted by the user. The row stays in
+// the DB; list endpoints filter it out by default. Idempotent: a second
+// call leaves deleted_at unchanged.
+func (r *TranscriptsRepo) SoftDelete(ctx context.Context, id string) error {
+	oid, err := bson.ObjectIDFromHex(id)
+	if err != nil {
+		return err
+	}
+	res, err := r.coll.UpdateOne(ctx,
+		bson.M{"_id": oid, "$or": []bson.M{
+			{"deleted_at": bson.M{"$exists": false}},
+			{"deleted_at": nil},
+		}},
+		bson.M{"$set": bson.M{"deleted_at": time.Now().UTC()}},
+	)
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 {
+		// Either not found, or already soft-deleted — verify existence so
+		// the API can distinguish 404 from no-op.
+		if err := r.coll.FindOne(ctx, bson.M{"_id": oid}).Err(); err != nil {
+			if errors.Is(err, mongo.ErrNoDocuments) {
+				return ErrNotFound
+			}
+			return err
+		}
+	}
+	return nil
 }
 
 // ListByWrapper returns every transcript of one wrapper, most recent first.
@@ -215,6 +262,43 @@ func (r *TranscriptsRepo) ListRecentByUser(ctx context.Context, userID string, l
 	return r.list(ctx, bson.M{"user_id": userOID}, limit)
 }
 
+// LiveUUIDsForUser filters jsonlUUIDs down to those that exist for the
+// user AND are not soft-deleted. Used by /api/search to drop matches
+// that point at transcripts the user has hidden.
+func (r *TranscriptsRepo) LiveUUIDsForUser(ctx context.Context, userID string, jsonlUUIDs []string) ([]string, error) {
+	if len(jsonlUUIDs) == 0 {
+		return nil, nil
+	}
+	userOID, err := bson.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, err
+	}
+	filter := bson.M{
+		"user_id":    userOID,
+		"jsonl_uuid": bson.M{"$in": jsonlUUIDs},
+		"$or": []bson.M{
+			{"deleted_at": bson.M{"$exists": false}},
+			{"deleted_at": nil},
+		},
+	}
+	cur, err := r.coll.Find(ctx, filter, options.Find().SetProjection(bson.M{"jsonl_uuid": 1}))
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	var out []string
+	for cur.Next(ctx) {
+		var d struct {
+			JSONLUUID string `bson:"jsonl_uuid"`
+		}
+		if err := cur.Decode(&d); err != nil {
+			return nil, err
+		}
+		out = append(out, d.JSONLUUID)
+	}
+	return out, nil
+}
+
 // GetByID looks up a transcript by its hex ObjectID.
 func (r *TranscriptsRepo) GetByID(ctx context.Context, id string) (*Transcript, error) {
 	oid, err := bson.ObjectIDFromHex(id)
@@ -232,6 +316,14 @@ func (r *TranscriptsRepo) GetByID(ctx context.Context, id string) (*Transcript, 
 }
 
 func (r *TranscriptsRepo) list(ctx context.Context, filter bson.M, limit int) ([]*Transcript, error) {
+	// Default behaviour: hide soft-deleted rows. Callers can pre-set
+	// "deleted_at" in `filter` to override (e.g. include_deleted=true).
+	if _, ok := filter["deleted_at"]; !ok {
+		filter["$or"] = []bson.M{
+			{"deleted_at": bson.M{"$exists": false}},
+			{"deleted_at": nil},
+		}
+	}
 	opts := options.Find().SetSort(bson.D{{Key: "started_at", Value: -1}})
 	if limit > 0 {
 		opts.SetLimit(int64(limit))

@@ -64,6 +64,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	mux.Handle("GET /api/projects", mw.Require(http.HandlerFunc(projects.List)))
 	mux.Handle("GET /api/transcripts", mw.Require(http.HandlerFunc(transcripts.List)))
 	mux.Handle("GET /api/transcripts/{id}", mw.Require(http.HandlerFunc(transcripts.Get)))
+	mux.Handle("DELETE /api/transcripts/{id}", mw.Require(http.HandlerFunc(transcripts.Delete)))
 	if cfg.SearchHub != nil {
 		search := NewSearchHandlers(cfg.Store, cfg.SearchHub)
 		mux.Handle("POST /api/search", mw.Require(http.HandlerFunc(search.Search)))

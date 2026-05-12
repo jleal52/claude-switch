@@ -219,3 +219,14 @@ export function useSearch() {
       apiClient<SearchResponseJSON>('/api/search', { method: 'POST', body: input }),
   });
 }
+
+export function useDeleteTranscript() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiClient<void>(`/api/transcripts/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['transcripts'] });
+    },
+  });
+}

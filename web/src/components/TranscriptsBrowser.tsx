@@ -4,6 +4,7 @@ import {
   useTranscripts,
   useWrappers,
   useSearch,
+  useDeleteTranscript,
   type ProjectJSON,
   type TranscriptJSON,
   type WrapperJSON,
@@ -163,8 +164,14 @@ export function TranscriptsBrowser() {
 }
 
 function TranscriptsList({ rows, loading }: { rows: TranscriptJSON[]; loading: boolean }) {
+  const del = useDeleteTranscript();
   if (loading) return <div className="text-muted-foreground">Cargando…</div>;
   if (rows.length === 0) return <div className="text-muted-foreground">Sin transcripciones todavía.</div>;
+  const onDelete = (t: TranscriptJSON) => {
+    const label = t.title?.slice(0, 60) || t.jsonl_uuid.slice(0, 8);
+    if (!confirm(`¿Eliminar la conversación "${label}"? Se ocultará del portal; el archivo en disco no se toca.`)) return;
+    del.mutate(t.id);
+  };
   return (
     <table className="w-full text-sm">
       <thead className="text-left text-xs uppercase tracking-wider text-muted-foreground">
@@ -173,6 +180,7 @@ function TranscriptsList({ rows, loading }: { rows: TranscriptJSON[]; loading: b
           <th className="py-2">Inicio</th>
           <th className="py-2">Mensajes</th>
           <th className="py-2">Tamaño</th>
+          <th className="py-2 w-10"></th>
         </tr>
       </thead>
       <tbody>
@@ -184,6 +192,17 @@ function TranscriptsList({ rows, loading }: { rows: TranscriptJSON[]; loading: b
             <td className="py-2 font-mono text-xs">{t.started_at.slice(0, 19).replace('T', ' ')}</td>
             <td className="py-2">{t.message_count}</td>
             <td className="py-2 text-muted-foreground">{formatBytes(t.bytes)}</td>
+            <td className="py-2 text-right">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onDelete(t)}
+                disabled={del.isPending}
+                title="Eliminar conversación del portal"
+              >
+                ✕
+              </Button>
+            </td>
           </tr>
         ))}
       </tbody>

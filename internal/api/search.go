@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -93,6 +94,7 @@ func (h *SearchHandlers) Search(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "dispatch: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	resp.Matches = filterDeletedMatches(r.Context(), h.store, u.ID, resp.Matches)
 	if resp.Matches == nil {
 		resp.Matches = []proto.SearchMatch{}
 	}
@@ -100,4 +102,42 @@ func (h *SearchHandlers) Search(w http.ResponseWriter, r *http.Request) {
 		Matches:   resp.Matches,
 		ByWrapper: resp.ByWrapper,
 	})
+}
+
+// filterDeletedMatches drops matches that belong to soft-deleted
+// transcripts. The wrapper doesn't know about portal-level soft deletes,
+// so the server post-filters using the transcripts collection's
+// deleted_at flag.
+func filterDeletedMatches(ctx context.Context, s *store.Store, userID string, matches []proto.SearchMatch) []proto.SearchMatch {
+	if len(matches) == 0 {
+		return matches
+	}
+	// Build a unique set of jsonl_uuids referenced by the matches and ask
+	// the store which ones are still live.
+	uuids := make([]string, 0, len(matches))
+	seen := map[string]bool{}
+	for _, m := range matches {
+		if !seen[m.TranscriptID] {
+			seen[m.TranscriptID] = true
+			uuids = append(uuids, m.TranscriptID)
+		}
+	}
+	liveUUIDs, err := s.Transcripts().LiveUUIDsForUser(ctx, userID, uuids)
+	if err != nil {
+		// On failure, fail open (return all matches) rather than dropping
+		// every result. The user can still see hits; the worst case is a
+		// deleted transcript briefly surfacing.
+		return matches
+	}
+	live := make(map[string]bool, len(liveUUIDs))
+	for _, u := range liveUUIDs {
+		live[u] = true
+	}
+	out := matches[:0]
+	for _, m := range matches {
+		if live[m.TranscriptID] {
+			out = append(out, m)
+		}
+	}
+	return out
 }

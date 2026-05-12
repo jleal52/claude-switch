@@ -142,6 +142,88 @@ func TestTranscriptsListByProject(t *testing.T) {
 	require.Len(t, got, 2)
 }
 
+func TestTranscriptsSoftDeleteHidesFromList(t *testing.T) {
+	s := NewTestStore(t, "tr_soft_delete")
+	u := mustUser(t, s)
+	w := mustWrapper(t, s, u, "w1")
+	t0 := time.Now().UTC()
+
+	require.NoError(t, s.Transcripts().ReplaceForWrapper(context.Background(), u, w,
+		[]ProjectUpsert{sampleProject("-x", "/Users/me/x")},
+		[]TranscriptUpsert{
+			sampleTranscript("a", "-x", t0),
+			sampleTranscript("b", "-x", t0),
+		},
+	))
+	all, _ := s.Transcripts().ListByWrapper(context.Background(), w, 10)
+	require.Len(t, all, 2)
+
+	// Soft-delete one. Default list excludes it; including-deleted shows it.
+	require.NoError(t, s.Transcripts().SoftDelete(context.Background(), all[0].ID))
+	visible, _ := s.Transcripts().ListByWrapper(context.Background(), w, 10)
+	require.Len(t, visible, 1)
+	require.Equal(t, all[1].JSONLUUID, visible[0].JSONLUUID)
+}
+
+func TestTranscriptsSoftDeletePreservedAcrossWrapperFullDiff(t *testing.T) {
+	s := NewTestStore(t, "tr_soft_preserve")
+	u := mustUser(t, s)
+	w := mustWrapper(t, s, u, "w1")
+	t0 := time.Now().UTC()
+	projects := []ProjectUpsert{sampleProject("-x", "/Users/me/x")}
+	transcripts := []TranscriptUpsert{
+		sampleTranscript("a", "-x", t0),
+		sampleTranscript("b", "-x", t0),
+	}
+	require.NoError(t, s.Transcripts().ReplaceForWrapper(context.Background(), u, w, projects, transcripts))
+	all, _ := s.Transcripts().ListByWrapper(context.Background(), w, 10)
+	require.NoError(t, s.Transcripts().SoftDelete(context.Background(), all[0].ID))
+
+	// Wrapper sends a fresh full-snapshot that still includes both
+	// transcripts (the JSONL files exist on disk). The soft-delete flag
+	// must survive the reconciliation.
+	require.NoError(t, s.Transcripts().ReplaceForWrapper(context.Background(), u, w, projects, transcripts))
+	visible, _ := s.Transcripts().ListByWrapper(context.Background(), w, 10)
+	require.Len(t, visible, 1, "soft-deleted transcript should stay hidden after a full diff")
+}
+
+func TestTranscriptsReplaceKeepsSoftDeletedEvenWhenWrapperDropsIt(t *testing.T) {
+	s := NewTestStore(t, "tr_soft_orphan")
+	u := mustUser(t, s)
+	w := mustWrapper(t, s, u, "w1")
+	t0 := time.Now().UTC()
+	require.NoError(t, s.Transcripts().ReplaceForWrapper(context.Background(), u, w,
+		[]ProjectUpsert{sampleProject("-x", "/Users/me/x")},
+		[]TranscriptUpsert{
+			sampleTranscript("a", "-x", t0),
+			sampleTranscript("b", "-x", t0),
+		},
+	))
+	all, _ := s.Transcripts().ListByWrapper(context.Background(), w, 10)
+	var idA string
+	for _, r := range all {
+		if r.JSONLUUID == "a" {
+			idA = r.ID
+		}
+	}
+	require.NotEmpty(t, idA)
+	require.NoError(t, s.Transcripts().SoftDelete(context.Background(), idA))
+
+	// Wrapper now reports only "b" (user removed the JSONL for "a" from
+	// disk after soft-deleting it). Server hard-deletes only non-soft-
+	// deleted orphans — "a" must remain (so the user's choice survives).
+	require.NoError(t, s.Transcripts().ReplaceForWrapper(context.Background(), u, w,
+		[]ProjectUpsert{sampleProject("-x", "/Users/me/x")},
+		[]TranscriptUpsert{sampleTranscript("b", "-x", t0)},
+	))
+
+	visible, _ := s.Transcripts().ListByWrapper(context.Background(), w, 10)
+	require.Len(t, visible, 1) // only "b" in default listing
+	got, err := s.Transcripts().GetByID(context.Background(), idA)
+	require.NoError(t, err, "soft-deleted 'a' should still exist in the DB")
+	require.NotNil(t, got.DeletedAt)
+}
+
 func TestTranscriptsGetByID(t *testing.T) {
 	s := NewTestStore(t, "tr_get")
 	u := mustUser(t, s)
