@@ -99,3 +99,27 @@ func TestWrappersDeleteOnlyOwn(t *testing.T) {
 	NewAuthMiddleware(s).Require(http.HandlerFunc(h.Delete)).ServeHTTP(rr, req)
 	require.Equal(t, http.StatusNotFound, rr.Code)
 }
+
+func TestWrappersDeleteRejectsOnlineWrapper(t *testing.T) {
+	s := newTestStore(t, "wr_delete_online")
+	ctx := context.Background()
+	u, _ := s.Users().UpsertOAuth(ctx, fakeProfile("u-online-del"))
+	w, _, _ := s.Wrappers().Create(ctx, store.WrapperCreate{UserID: u.ID, Name: "live", OS: "linux", Arch: "amd64"})
+
+	sess, _ := s.AuthSessions().Create(ctx, u.ID, time.Hour)
+	h := NewWrappersHandlers(s, fakePresence{w.ID: true}) // currently connected
+
+	req := httptest.NewRequest("DELETE", "/api/wrappers/"+w.ID, nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: sess.ID})
+	req.AddCookie(&http.Cookie{Name: csrf.CookieName, Value: sess.CSRFToken})
+	req.Header.Set(csrf.HeaderName, sess.CSRFToken)
+	req.SetPathValue("id", w.ID)
+	rr := httptest.NewRecorder()
+	NewAuthMiddleware(s).Require(http.HandlerFunc(h.Delete)).ServeHTTP(rr, req)
+	require.Equal(t, http.StatusConflict, rr.Code)
+
+	// And the row must not be revoked.
+	rows, _ := s.Wrappers().ListByUser(ctx, u.ID)
+	require.Len(t, rows, 1)
+	require.Nil(t, rows[0].RevokedAt)
+}

@@ -1,12 +1,20 @@
 import { Link } from '@tanstack/react-router';
-import { useWrappers, useSessions, type WrapperJSON, type SessionJSON } from '@/api/hooks';
+import { useWrappers, useSessions, useDeleteWrapper, type WrapperJSON, type SessionJSON } from '@/api/hooks';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { NewSessionModal } from './NewSessionModal';
 
 export function Sidebar() {
   const wrappers = useWrappers();
   const sessions = useSessions('live');
+  const del = useDeleteWrapper();
+
+  const onDeleteWrapper = (w: WrapperJSON) => {
+    if (!confirm(`¿Eliminar el wrapper "${w.name}"? Se revocan sus credenciales; tendrás que volver a emparejarlo si lo necesitas.`)) return;
+    del.mutate(w.id, {
+      onError: (e) => alert('No se pudo eliminar: ' + String(e)),
+    });
+  };
 
   if (wrappers.isLoading || sessions.isLoading) {
     return <div className="p-3 text-sm text-muted-foreground">Loading…</div>;
@@ -43,17 +51,23 @@ export function Sidebar() {
                 title={w.online ? 'Conectado' : 'Desconectado'}
               />
               <span className="truncate font-medium">{w.name}</span>
-              <span
-                className={
-                  w.online
-                    ? 'shrink-0 font-mono text-[10px] uppercase tracking-wider text-emerald-500'
-                    : 'shrink-0 font-mono text-[10px] uppercase tracking-wider text-red-500'
-                }
-              >
-                {w.online ? 'online' : 'offline'}
-              </span>
             </span>
-            <span className="shrink-0 text-xs text-muted-foreground">{w.os}/{w.arch}</span>
+            <span className="flex shrink-0 items-center gap-1">
+              <span className="text-xs text-muted-foreground">{w.os}/{w.arch}</span>
+              {!w.online && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                  onClick={() => onDeleteWrapper(w)}
+                  disabled={del.isPending}
+                  title="Eliminar wrapper (revoca credenciales)"
+                  aria-label="Eliminar wrapper"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </span>
           </header>
           <ul className="space-y-0.5 pl-2">
             {(sessionsByWrapper.get(w.id) ?? []).map((s) => (

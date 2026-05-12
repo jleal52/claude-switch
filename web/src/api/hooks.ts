@@ -48,6 +48,19 @@ export function useWrappers() {
   });
 }
 
+// useDeleteWrapper soft-revokes a wrapper. The server rejects with 409
+// while the wrapper is online — the caller should hide the action then.
+export function useDeleteWrapper() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiClient<void>(`/api/wrappers/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['wrappers'] });
+    },
+  });
+}
+
 export interface SessionJSON {
   id: string;
   wrapper_id: string;

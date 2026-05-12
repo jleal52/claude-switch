@@ -82,6 +82,15 @@ func (h *WrappersHandlers) Delete(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	// Refuse to revoke a wrapper that is currently connected — the row's
+	// `revoked_at` would kick in on the next reconnect, but the live WS
+	// session would keep streaming until then. Make the caller wait for
+	// the wrapper to go offline (or shut it down themselves) so the
+	// portal state matches reality after the click.
+	if h.presence != nil && h.presence.WrapperOnline(id) {
+		http.Error(w, "wrapper online; stop it before deleting", http.StatusConflict)
+		return
+	}
 	if err := h.store.Wrappers().Revoke(r.Context(), id); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			http.NotFound(w, r)
