@@ -22,6 +22,29 @@ func newCatalog() *Catalog {
 	}
 }
 
+// NewCatalog returns an empty Catalog. Useful as a placeholder before the
+// first scan completes.
+func NewCatalog() *Catalog { return newCatalog() }
+
+// CatalogFromSnapshot rebuilds a Catalog from a Snapshot. Used by callers
+// that hold the latest snapshot (e.g. the wrapper's search executor) and
+// need to hand a Searcher a queryable index.
+func CatalogFromSnapshot(s *Snapshot) *Catalog {
+	c := newCatalog()
+	if s == nil {
+		return c
+	}
+	for _, p := range s.Projects {
+		cp := *p
+		c.projects[p.Slug] = &cp
+	}
+	for _, t := range s.Transcripts {
+		ct := *t
+		c.transcripts[t.JSONLUUID] = &ct
+	}
+	return c
+}
+
 // PutTranscript inserts or replaces a transcript and updates its project's
 // aggregate fields (session_count, first/last activity).
 func (c *Catalog) PutTranscript(tr *Transcript, projCwd string) {

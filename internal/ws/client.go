@@ -30,6 +30,22 @@ type Config struct {
 	WrapperID   string
 	Version     string
 	ReadTimeout time.Duration // per-read timeout; default 45s
+
+	// CatalogSource, if non-nil, returns the wrapper's current transcripts
+	// catalog. It is consulted right after every hello so the server gets
+	// a fresh full=true snapshot, covering any deltas accumulated while
+	// the wrapper was disconnected.
+	CatalogSource func() *proto.CatalogDiff
+	// CatalogUpdates is read for incremental catalog diffs while
+	// connected. The watcher writes here; runOnce drains the channel
+	// only while a connection is live (a sub-context selector handles
+	// cancellation), so missed diffs are recovered on the next reconnect
+	// via CatalogSource.
+	CatalogUpdates <-chan proto.CatalogDiff
+	// SearchExecutor, if non-nil, handles incoming search.request frames.
+	// Invoked in a goroutine; its result is written back as
+	// proto.TypeSearchResults with the same correlation id.
+	SearchExecutor func(ctx context.Context, req proto.SearchRequest) proto.SearchResults
 }
 
 type Client struct {
@@ -68,6 +84,42 @@ func (c *Client) runOnce(ctx context.Context, onConnected func()) error {
 	}
 	if onConnected != nil {
 		onConnected()
+	}
+
+	// Send a full catalog snapshot right after hello so the server's view
+	// is in sync before any incremental diff lands.
+	if c.cfg.CatalogSource != nil {
+		if snap := c.cfg.CatalogSource(); snap != nil {
+			raw, err := proto.Encode(proto.TypeCatalogDiff, "", *snap)
+			if err == nil {
+				if err := conn.Write(ctx, websocket.MessageText, raw); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	// Fan-in goroutine for incremental catalog diffs while connected.
+	if c.cfg.CatalogUpdates != nil {
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case d, ok := <-c.cfg.CatalogUpdates:
+					if !ok {
+						return
+					}
+					raw, err := proto.Encode(proto.TypeCatalogDiff, "", d)
+					if err != nil {
+						continue
+					}
+					if err := conn.Write(ctx, websocket.MessageText, raw); err != nil {
+						return
+					}
+				}
+			}
+		}()
 	}
 
 	// Ring-buffer replay: re-send what each alive session has buffered so the
@@ -228,6 +280,27 @@ func (c *Client) handleControl(ctx context.Context, conn *websocket.Conn, data [
 			return err
 		}
 		return conn.Write(ctx, websocket.MessageText, raw)
+	case proto.TypeSearchRequest:
+		if c.cfg.SearchExecutor == nil {
+			return nil
+		}
+		var req proto.SearchRequest
+		if err := json.Unmarshal([]byte(payload), &req); err != nil {
+			return nil // malformed: drop, don't tear down the connection
+		}
+		// Detach the executor so a slow search doesn't stall the read loop.
+		// Pre-encode the response after computing it.
+		go func(reqID string, q proto.SearchRequest) {
+			res := c.cfg.SearchExecutor(ctx, q)
+			raw, err := proto.Encode(proto.TypeSearchResults, reqID, res)
+			if err != nil {
+				return
+			}
+			wctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
+			_ = conn.Write(wctx, websocket.MessageText, raw)
+		}(sess, req)
+		return nil
 	}
 	return nil
 }

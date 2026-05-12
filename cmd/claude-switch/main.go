@@ -11,13 +11,16 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/jleal52/claude-switch/internal/auth"
 	"github.com/jleal52/claude-switch/internal/config"
+	"github.com/jleal52/claude-switch/internal/proto"
 	"github.com/jleal52/claude-switch/internal/pty"
 	"github.com/jleal52/claude-switch/internal/session"
+	"github.com/jleal52/claude-switch/internal/transcripts"
 	"github.com/jleal52/claude-switch/internal/ws"
 )
 
@@ -169,21 +172,141 @@ func run() int {
 	host, _ := os.Hostname()
 	wid := fmt.Sprintf("%s-%x", filepath.Base(host), os.Getpid()&0xffff)
 
+	// Transcripts catalog: initial scan in foreground so the very first
+	// connect carries a populated catalog.diff full=true.
+	catalogRoot := filepath.Join(claudeHome, "projects")
+	scanCtx, scanCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	initialCat, err := transcripts.NewScanner(catalogRoot).Scan(scanCtx)
+	scanCancel()
+	if err != nil {
+		slog.Warn("transcripts initial scan", "err", err)
+		initialCat = newEmptyCatalog()
+	}
+
+	var catalogMu sync.RWMutex
+	currentSnap := initialCat.Snapshot()
+	catalogUpdates := make(chan proto.CatalogDiff, 32)
+
+	catalogSource := func() *proto.CatalogDiff {
+		catalogMu.RLock()
+		defer catalogMu.RUnlock()
+		d := snapshotToCatalogDiff(currentSnap)
+		return &d
+	}
+
+	searcher := &transcripts.Searcher{
+		Root: catalogRoot,
+		Catalog: nil, // updated alongside currentSnap below
+	}
+
 	cli := ws.NewClient(ws.Config{
-		URL:         cfg.ServerURL,
-		TokenSource: refresher.Token,
-		WrapperID:   wid,
-		Version:     wrapperVersion,
+		URL:            cfg.ServerURL,
+		TokenSource:    refresher.Token,
+		WrapperID:      wid,
+		Version:        wrapperVersion,
+		CatalogSource:  catalogSource,
+		CatalogUpdates: catalogUpdates,
+		SearchExecutor: func(ctx context.Context, req proto.SearchRequest) proto.SearchResults {
+			catalogMu.RLock()
+			searcher.Catalog = liveCatalogFromSnapshot(currentSnap)
+			catalogMu.RUnlock()
+			return searcher.Search(ctx, req)
+		},
 	}, sup, events)
 
 	ctx := signalCtx()
 	go sup.Run(ctx)
 	go func() { _ = refresher.Run(ctx) }()
+	go runCatalogWatcher(ctx, catalogRoot, &catalogMu, &currentSnap, catalogUpdates)
+
 	if err := cli.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		slog.Error("ws run", "err", err)
 		return 1
 	}
 	return 0
+}
+
+func newEmptyCatalog() *transcripts.Catalog { return transcripts.NewCatalog() }
+
+// snapshotToCatalogDiff converts a transcripts.Snapshot to a wire-ready
+// proto.CatalogDiff with Full=true.
+func snapshotToCatalogDiff(s *transcripts.Snapshot) proto.CatalogDiff {
+	if s == nil {
+		return proto.CatalogDiff{Full: true}
+	}
+	d := proto.CatalogDiff{Full: true}
+	for _, p := range s.Projects {
+		d.Projects = append(d.Projects, proto.CatalogProject{
+			Slug: p.Slug, Cwd: p.Cwd, Name: p.Name,
+			SessionCount:    p.SessionCount,
+			FirstActivityAt: p.FirstActivityAt.UTC().Format(time.RFC3339Nano),
+			LastActivityAt:  p.LastActivityAt.UTC().Format(time.RFC3339Nano),
+		})
+	}
+	for _, t := range s.Transcripts {
+		d.Transcripts = append(d.Transcripts, proto.CatalogTranscript{
+			JSONLUUID: t.JSONLUUID, Slug: t.Slug, Path: t.Path,
+			StartedAt:    t.StartedAt.UTC().Format(time.RFC3339Nano),
+			EndedAt:      t.EndedAt.UTC().Format(time.RFC3339Nano),
+			MessageCount: t.MessageCount, Title: t.Title, Bytes: t.Bytes,
+		})
+	}
+	return d
+}
+
+// diffToCatalogDiff converts an incremental transcripts.Diff to the wire
+// payload (Full=false).
+func diffToCatalogDiff(d *transcripts.Diff) proto.CatalogDiff {
+	if d == nil {
+		return proto.CatalogDiff{}
+	}
+	out := proto.CatalogDiff{Full: false, RemovedTranscripts: d.RemovedTranscripts}
+	for _, p := range d.UpsertProjects {
+		out.Projects = append(out.Projects, proto.CatalogProject{
+			Slug: p.Slug, Cwd: p.Cwd, Name: p.Name,
+			SessionCount:    p.SessionCount,
+			FirstActivityAt: p.FirstActivityAt.UTC().Format(time.RFC3339Nano),
+			LastActivityAt:  p.LastActivityAt.UTC().Format(time.RFC3339Nano),
+		})
+	}
+	for _, t := range d.UpsertTranscripts {
+		out.Transcripts = append(out.Transcripts, proto.CatalogTranscript{
+			JSONLUUID: t.JSONLUUID, Slug: t.Slug, Path: t.Path,
+			StartedAt:    t.StartedAt.UTC().Format(time.RFC3339Nano),
+			EndedAt:      t.EndedAt.UTC().Format(time.RFC3339Nano),
+			MessageCount: t.MessageCount, Title: t.Title, Bytes: t.Bytes,
+		})
+	}
+	return out
+}
+
+// liveCatalogFromSnapshot rebuilds a Catalog from a Snapshot so the
+// Searcher can use it without a long-lived reference to the watcher.
+func liveCatalogFromSnapshot(s *transcripts.Snapshot) *transcripts.Catalog {
+	c := transcripts.CatalogFromSnapshot(s)
+	return c
+}
+
+// runCatalogWatcher drives the polling watcher: it updates currentSnap
+// and pushes incremental diffs onto the wire channel.
+func runCatalogWatcher(ctx context.Context, root string, mu *sync.RWMutex, snap **transcripts.Snapshot, out chan<- proto.CatalogDiff) {
+	w := &transcripts.Watcher{Root: root, Interval: transcripts.DefaultWatchInterval}
+	seenFirst := false
+	_ = w.Run(ctx, func(u transcripts.Update) {
+		mu.Lock()
+		*snap = u.Snapshot
+		mu.Unlock()
+		if !seenFirst {
+			// Watcher's first tick replicates main's initial Scan; the
+			// next reconnect's CatalogSource will pick it up.
+			seenFirst = true
+			return
+		}
+		select {
+		case out <- diffToCatalogDiff(u.Diff):
+		case <-ctx.Done():
+		}
+	})
 }
 
 func signalCtx() context.Context {
