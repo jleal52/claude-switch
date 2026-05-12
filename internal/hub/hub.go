@@ -20,6 +20,7 @@ const (
 	FrameTypePTYInput
 	FrameTypePTYResize
 	FrameTypePing
+	FrameTypeSearchRequest
 )
 
 // OutboundFrame is what the hub asks a WrapperConn to send. The wswrapper
@@ -194,6 +195,31 @@ func (h *Hub) FanoutControl(sessionID, typ string, payload any) {
 	for _, b := range subs {
 		_ = b.SendControl(typ, payload)
 	}
+}
+
+// SendSearchRequest delivers a search.request to a specific wrapper. The
+// request body is the proto.SearchRequest JSON; requestID is the envelope's
+// session field used to correlate the response.
+func (h *Hub) SendSearchRequest(wrapperID, requestID string, body any) error {
+	h.mu.RLock()
+	conn := h.wrappers[wrapperID]
+	h.mu.RUnlock()
+	if conn == nil {
+		return ErrWrapperOffline
+	}
+	return conn.Send(OutboundFrame{Type: FrameTypeSearchRequest, SessionID: requestID, JSON: body})
+}
+
+// OnlineWrappers returns a snapshot of all wrapper IDs currently holding a
+// connection. Used by searchhub to fan out a query.
+func (h *Hub) OnlineWrappers() []string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	out := make([]string, 0, len(h.wrappers))
+	for id := range h.wrappers {
+		out = append(out, id)
+	}
+	return out
 }
 
 func (h *Hub) SendInput(sessionID string, payload []byte) error {

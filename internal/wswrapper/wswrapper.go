@@ -322,6 +322,12 @@ func (w *wrapperConn) Send(fr hub.OutboundFrame) error {
 			return err
 		}
 		return w.c.Write(ctx, websocket.MessageText, raw)
+	case hub.FrameTypeSearchRequest:
+		raw, err := proto.Encode(proto.TypeSearchRequest, fr.SessionID, fr.JSON)
+		if err != nil {
+			return err
+		}
+		return w.c.Write(ctx, websocket.MessageText, raw)
 	}
 	return errors.New("wrapperConn: unknown frame type")
 }
