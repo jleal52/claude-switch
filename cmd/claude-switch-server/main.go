@@ -15,6 +15,7 @@ import (
 	"github.com/jleal52/claude-switch/internal/api"
 	"github.com/jleal52/claude-switch/internal/hub"
 	"github.com/jleal52/claude-switch/internal/oauth"
+	"github.com/jleal52/claude-switch/internal/searchhub"
 	"github.com/jleal52/claude-switch/internal/store"
 )
 
@@ -52,6 +53,7 @@ func run() error {
 	defer s.Close(context.Background())
 
 	h := hub.New()
+	sh := searchhub.New(h, 15*time.Second)
 	providers := buildProviders(baseURL)
 	if len(providers) == 0 {
 		return fmt.Errorf("no OAuth providers configured (set OAUTH_GITHUB_* or OAUTH_GOOGLE_*)")
@@ -61,7 +63,7 @@ func run() error {
 	wsServerEndpoint = strings.Replace(wsServerEndpoint, "http://", "ws://", 1) + "/ws/wrapper"
 
 	router := api.NewRouter(api.RouterConfig{
-		Store: s, Hub: h, Providers: providers,
+		Store: s, Hub: h, SearchHub: sh, Providers: providers,
 		BaseURL: baseURL, Secure: strings.HasPrefix(baseURL, "https://"),
 		ServerEndpoint: wsServerEndpoint,
 	})
