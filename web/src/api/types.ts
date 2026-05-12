@@ -73,6 +73,38 @@ export interface PairingRepo {
 }
 
 //////////
+// source: projects.go
+
+/**
+ * Project is the public representation of a project document. One row per
+ * (wrapper, project-slug) tuple.
+ */
+export interface Project {
+  ID: string; // hex of ObjectID
+  UserID: string; // hex of ObjectID
+  WrapperID: string; // hex of ObjectID
+  Slug: string; // dir name under ~/.claude/projects/
+  Cwd: string; // absolute cwd recovered from JSONL events
+  Name: string; // basename of Cwd
+  SessionCount: number /* int */;
+  FirstActivityAt: string;
+  LastActivityAt: string;
+}
+/**
+ * ProjectUpsert is the wrapper-side intent for a project row.
+ */
+export interface ProjectUpsert {
+  Slug: string;
+  Cwd: string;
+  Name: string;
+  SessionCount: number /* int */;
+  FirstActivityAt: string;
+  LastActivityAt: string;
+}
+export interface ProjectsRepo {
+}
+
+//////////
 // source: sessions.go
 
 /**
@@ -105,6 +137,42 @@ export interface SessionCreate {
  * SessionsRepo provides CRUD operations for sessions documents.
  */
 export interface SessionsRepo {
+}
+
+//////////
+// source: transcripts.go
+
+/**
+ * Transcript is the public representation of a transcripts document.
+ */
+export interface Transcript {
+  ID: string; // hex of ObjectID
+  UserID: string; // hex of ObjectID
+  WrapperID: string; // hex of ObjectID
+  ProjectID: string; // hex of ObjectID
+  JSONLUUID: string; // filename without .jsonl, unique per wrapper
+  Path: string; // relative to ~/.claude/projects/
+  StartedAt: string;
+  EndedAt: string;
+  MessageCount: number /* int */;
+  Title: string;
+  Bytes: number /* int64 */;
+}
+/**
+ * TranscriptUpsert is the wrapper-side intent for a transcript row.
+ * ProjectSlug is resolved server-side to ProjectID via Projects().UpsertMany.
+ */
+export interface TranscriptUpsert {
+  JSONLUUID: string;
+  ProjectSlug: string;
+  Path: string;
+  StartedAt: string;
+  EndedAt: string;
+  MessageCount: number /* int */;
+  Title: string;
+  Bytes: number /* int64 */;
+}
+export interface TranscriptsRepo {
 }
 
 //////////

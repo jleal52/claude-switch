@@ -132,6 +132,25 @@ func (s *Store) ensureIndexes(ctx context.Context) error {
 			Keys:    bson.D{{Key: "expires_at", Value: 1}},
 			Options: options.Index().SetExpireAfterSeconds(0),
 		}},
+
+		{"projects", mongo.IndexModel{
+			Keys:    bson.D{{Key: "wrapper_id", Value: 1}, {Key: "slug", Value: 1}},
+			Options: options.Index().SetUnique(true),
+		}},
+		{"projects", mongo.IndexModel{
+			Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "last_activity_at", Value: -1}},
+		}},
+
+		{"transcripts", mongo.IndexModel{
+			Keys:    bson.D{{Key: "wrapper_id", Value: 1}, {Key: "jsonl_uuid", Value: 1}},
+			Options: options.Index().SetUnique(true),
+		}},
+		{"transcripts", mongo.IndexModel{
+			Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "project_id", Value: 1}, {Key: "last_activity_at", Value: -1}},
+		}},
+		{"transcripts", mongo.IndexModel{
+			Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "started_at", Value: -1}},
+		}},
 	}
 	for _, sp := range specs {
 		if _, err := s.db.Collection(sp.coll).Indexes().CreateOne(ctx, sp.model); err != nil {

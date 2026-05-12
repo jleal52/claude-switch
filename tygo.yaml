@@ -11,6 +11,8 @@ packages:
       - "sessions.go"
       - "messages.go"
       - "auth_sessions.go"
+      - "projects.go"
+      - "transcripts.go"
     exclude_types:
       - "WrappersRepo"
       - "WrapperTokensRepo"
@@ -19,3 +21,5 @@ packages:
       - "SessionsRepo"
       - "MessagesRepo"
       - "AuthSessionsRepo"
+      - "ProjectsRepo"
+      - "TranscriptsRepo"
